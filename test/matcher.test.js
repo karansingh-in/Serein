@@ -104,3 +104,10 @@ test('loosening detection protects distraction settings from instant removal', (
   assert.equal(isLoosening(base, { ...base, distractions: { comments: false, liveChat: true } }), true);
   assert.equal(isLoosening(base, { ...base, distractions: { comments: true, liveChat: true } }), false);
 });
+
+test('turning autoplay disabling off counts as loosening', () => {
+  const oldSettings = { ...base(), playback: { disableAutoplay: true } };
+  const newSettings = { ...base(), playback: { disableAutoplay: false } };
+  assert.equal(isLoosening(oldSettings, newSettings), true);
+  assert.equal(isLoosening(oldSettings, { ...oldSettings, playback: { disableAutoplay: true } }), false);
+});

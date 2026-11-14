@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.0
+- Added compact Minimal, Study, and Deep Focus presets using existing settings; no separate preset state or background service.
+- Presets adjust Shorts/recommendation focus, the distraction checklist, and autoplay only; keywords, playback speed, time-awareness settings, theme, and recreation schedule are preserved.
+- Manual adjustments are identified as Custom.
+- Turning autoplay disabling off now follows the existing 60-second loosening cooldown.
+- Added unit tests for preset behaviour and detection.
+
 ## 1.7.0
 - Added optional active-video viewing-time awareness.
 - Counts time only while a video is actively playing in the visible YouTube tab.

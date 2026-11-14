@@ -93,6 +93,10 @@ function isLoosening(oldSettings, newSettings) {
   }
 
   if (oldValue.distractionMode && !newValue.distractionMode) return true;
+
+  const oldPlayback = oldValue.playback || {};
+  const newPlayback = newValue.playback || {};
+  if (oldPlayback.disableAutoplay === true && newPlayback.disableAutoplay !== true) return true;
   if (oldValue.distractionMode && newValue.distractionMode) {
     const oldDistractions = oldValue.distractions || {};
     const newDistractions = newValue.distractions || {};

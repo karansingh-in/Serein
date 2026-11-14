@@ -4,6 +4,8 @@ A small, local-only YouTube focus extension. It filters videos by keyword, handl
 
 ## Features
 
+- **Focus presets:** Minimal, Study, and Deep Focus presets configure existing Shorts, recommendation, distraction-checklist, and autoplay settings. Manual changes are recognized as Custom. Presets do not overwrite keywords, playback speed, time-awareness preferences, theme, or recreation schedule.
+
 - **Keyword blocking:** case-insensitive matching, literal keyword text (including punctuation), flexible whitespace, and optional whole-word matching.
 - **Shorts focus:** hides Shorts shelves/navigation and redirects `/shorts/<video-id>` links to regular watch pages.
 - **Recommendation blocking:** optionally hides the watch-page recommendation sidebar.
@@ -40,8 +42,8 @@ A temporary add-on is removed when Firefox restarts. For permanent use, the exte
 
 1. Open YouTube and click the floating blocker button.
 2. Add one keyword per line (commas also separate keywords).
-3. Configure **Focus** options.
-4. Enable **Hide distracting elements** and expand **Choose elements** to customize the checklist.
+3. Choose **Minimal**, **Study**, or **Deep Focus**, or adjust settings manually (shown as **Custom**).
+4. Configure **Focus** options and enable **Hide distracting elements** and expand **Choose elements** to customize the checklist.
 5. Choose autoplay and default playback-speed preferences in **Playback**.
 6. Optionally enable **Track active viewing time** and choose a break reminder in **Time awareness**.
 7. Set a recreation window if desired.
@@ -58,7 +60,7 @@ npm run check
 npm test
 ```
 
-Tests cover keyword matching, schedule boundaries, loosening detection, Shorts URL conversion, distraction-option normalization and element discovery, plus playback preference normalization, speed application, autoplay-state handling, and active viewing-time tracking using lightweight DOM stubs. They do not replace testing against YouTube's live DOM. YouTube changes its markup periodically, so each selector should be checked in Firefox after installation.
+Tests cover keyword matching, schedule boundaries, loosening detection, Shorts URL conversion, distraction-option normalization and element discovery, focus preset application and detection, playback preference normalization, speed application, autoplay-state handling, and active viewing-time tracking using lightweight DOM stubs. They do not replace testing against YouTube's live DOM. YouTube changes its markup periodically, so each selector should be checked in Firefox after installation.
 
 ## Privacy
 
