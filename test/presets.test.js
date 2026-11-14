@@ -22,12 +22,12 @@ test('exposes exactly the three supported focus presets', () => {
   assert.deepEqual(Object.keys(PRESETS), ['minimal', 'study', 'deep']);
 });
 
-test('presets change only focus, distraction and autoplay settings', () => {
+test('presets change focus, distractions, autoplay and the intended timer default only', () => {
   const original = settings();
   const result = apply('study', original);
   assert.deepEqual(result.keywords, original.keywords);
   assert.equal(result.wholeWord, original.wholeWord);
-  assert.deepEqual(result.timeAwareness, original.timeAwareness);
+  assert.deepEqual(result.timeAwareness, { enabled: true, reminderMinutes: 45 });
   assert.deepEqual(result.recreation, original.recreation);
   assert.equal(result.theme, original.theme);
   assert.equal(result.playback.defaultSpeed, 1.5);
@@ -47,6 +47,7 @@ test('minimal keeps recommendations and engagement while removing Shorts and pro
   assert.equal(result.distractions.liveChat, false);
   assert.equal(result.distractions.trendingExplore, false);
   assert.equal(result.playback.disableAutoplay, false);
+  assert.equal(result.timeAwareness.enabled, false);
 });
 
 test('study hides viewing distractions but leaves create and notifications available', () => {
@@ -57,6 +58,8 @@ test('study hides viewing distractions but leaves create and notifications avail
   assert.equal(result.distractions.notificationBell, false);
   assert.equal(result.distractions.createButton, false);
   assert.equal(result.playback.disableAutoplay, true);
+  assert.equal(result.timeAwareness.enabled, true);
+  assert.equal(result.timeAwareness.reminderMinutes, 45);
 });
 
 test('deep focus hides every configured distraction', () => {
@@ -64,6 +67,8 @@ test('deep focus hides every configured distraction', () => {
   assert.ok(Object.values(result.distractions).every(Boolean));
   assert.equal(result.focus.rabbit, true);
   assert.equal(result.playback.disableAutoplay, true);
+  assert.equal(result.timeAwareness.enabled, true);
+  assert.equal(result.timeAwareness.reminderMinutes, 45);
 });
 
 test('identifies presets and returns custom after an individual adjustment', () => {
@@ -78,4 +83,16 @@ test('identifies presets and returns custom after an individual adjustment', () 
 test('unknown preset leaves settings unchanged', () => {
   const original = settings();
   assert.equal(apply('unknown', original), original);
+});
+
+test('Study and Deep Focus enable active viewing time while Minimal disables it', () => {
+  assert.equal(apply('minimal', settings()).timeAwareness.enabled, false);
+  assert.equal(apply('study', settings()).timeAwareness.enabled, true);
+  assert.equal(apply('deep', settings()).timeAwareness.enabled, true);
+});
+
+test('timer preference changes are recognized as Custom', () => {
+  const study = apply('study', settings());
+  study.timeAwareness.enabled = false;
+  assert.equal(identify(study), 'custom');
 });

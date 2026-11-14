@@ -18,3 +18,8 @@ test('settings panel exposes dialog semantics and Escape-to-close behaviour', ()
   assert.match(source, /event\.key === 'Escape'/);
   assert.match(source, /toggle\.setAttribute\('aria-expanded'/);
 });
+
+test('focus presets update the viewing-time checkbox and settings changes sync the timer', () => {
+  assert.match(source, /timeTracking\.input\.checked = next\.timeAwareness\.enabled/);
+  assert.match(source, /syncTimeTimer\(\);\s*if \(applyThemeFn\)/);
+});

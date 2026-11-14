@@ -20,7 +20,8 @@
         comments: false,
         liveChat: false
       }),
-      disableAutoplay: false
+      disableAutoplay: false,
+      timeAwareness: Object.freeze({ enabled: false })
     }),
     study: Object.freeze({
       focus: Object.freeze({ shorts: true, rabbit: true }),
@@ -39,7 +40,8 @@
         comments: true,
         liveChat: true
       }),
-      disableAutoplay: true
+      disableAutoplay: true,
+      timeAwareness: Object.freeze({ enabled: true })
     }),
     deep: Object.freeze({
       focus: Object.freeze({ shorts: true, rabbit: true }),
@@ -58,7 +60,8 @@
         comments: true,
         liveChat: true
       }),
-      disableAutoplay: true
+      disableAutoplay: true,
+      timeAwareness: Object.freeze({ enabled: true })
     })
   });
 
@@ -70,7 +73,8 @@
       focus: { ...settings.focus, ...preset.focus },
       distractionMode: preset.distractionMode,
       distractions: { ...settings.distractions, ...preset.distractions },
-      playback: { ...settings.playback, disableAutoplay: preset.disableAutoplay }
+      playback: { ...settings.playback, disableAutoplay: preset.disableAutoplay },
+      timeAwareness: { ...settings.timeAwareness, enabled: preset.timeAwareness.enabled }
     };
   }
 
@@ -79,6 +83,7 @@
       if (settings.distractionMode !== preset.distractionMode) continue;
       if (settings.focus.shorts !== preset.focus.shorts || settings.focus.rabbit !== preset.focus.rabbit) continue;
       if (settings.playback.disableAutoplay !== preset.disableAutoplay) continue;
+      if (settings.timeAwareness.enabled !== preset.timeAwareness.enabled) continue;
       const matches = Object.keys(preset.distractions).every((key) =>
         settings.distractions[key] === preset.distractions[key]);
       if (matches) return id;

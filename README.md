@@ -6,9 +6,7 @@ A small, local-only YouTube focus extension. It filters videos by keyword, handl
 
 - **Compact settings panel:** Focus mode and keyword entry stay visible; less frequently changed controls live in native collapsible sections. Press Escape to close the panel.
 
-- **Compact settings panel:** Focus mode and keyword entry stay visible; less frequently changed controls live in native collapsible sections. Press Escape to close the panel.
-
-- **Focus presets:** Minimal, Study, and Deep Focus presets configure existing Shorts, recommendation, distraction-checklist, and autoplay settings. Manual changes are recognized as Custom. Presets do not overwrite keywords, playback speed, time-awareness preferences, theme, or recreation schedule.
+- **Focus presets:** Minimal, Study, and Deep Focus configure existing Shorts, recommendation, distraction-checklist, and autoplay settings. Study and Deep Focus automatically enable active viewing-time tracking; Minimal disables it. Your reminder interval, keywords, playback speed, theme, and recreation schedule are preserved. Manual adjustments are recognized as Custom.
 
 - **Keyword blocking:** case-insensitive matching, literal keyword text (including punctuation), flexible whitespace, and optional whole-word matching.
 - **Shorts focus:** hides Shorts shelves/navigation and redirects `/shorts/<video-id>` links to regular watch pages.
@@ -23,7 +21,7 @@ A small, local-only YouTube focus extension. It filters videos by keyword, handl
   - Comments and live chat
 - **60-second loosening cooldown:** changes that allow more content through wait 60 seconds and can be cancelled. Tightening changes apply immediately.
 - **Playback controls:** optionally disable YouTube autoplay and set a default speed of 1x, 1.25x, 1.5x, 1.75x, or 2x. The chosen speed is applied to each newly opened video; manual speed changes are not overwritten during the same video.
-- **Time awareness:** optionally tracks active video playback in the visible tab, shows a session timer, and can display a break reminder after 30, 45, 60, or 90 minutes. Paused videos and inactive tabs are not counted. Sessions reset after 15 minutes without active playback.
+- **Time awareness:** tracks active video playback in the visible tab, shows a session timer, and can display a break reminder after 30, 45, 60, or 90 minutes. It is enabled automatically in Study and Deep Focus, but can be changed in Custom. Paused videos and inactive tabs are not counted. Sessions reset after 15 minutes without active playback.
 - **Recreation schedule:** daily local-time window, including overnight ranges. Blocking pauses during that window.
 - **Theme:** Auto (follows YouTube's theme), Light, or Dark.
 - **Local-only storage:** settings are saved using the browser extension storage API. No analytics, telemetry, remote requests, or external fonts.
@@ -49,7 +47,7 @@ A temporary add-on is removed when Firefox restarts. For permanent use, the exte
 3. Choose **Minimal**, **Study**, or **Deep Focus**, or adjust settings manually (shown as **Custom**).
 4. Configure **Focus** options and enable **Hide distracting elements** and expand **Choose elements** to customize the checklist.
 5. Choose autoplay and default playback-speed preferences in **Playback**.
-6. Optionally enable **Track active viewing time** and choose a break reminder in **Time awareness**.
+6. Configure **Time awareness** if desired. Study and Deep Focus enable active viewing-time tracking automatically; choose a reminder interval separately.
 7. Set a recreation window if desired.
 8. Press **Save**.
 
