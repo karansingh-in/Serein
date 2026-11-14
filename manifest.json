@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "YT Keyword Blocker",
-  "version": "1.3.0",
-  "description": "Hide YouTube videos by keyword, with a recreation-time pause. Local-only, zero telemetry.",
+  "version": "1.4.0",
+  "description": "A local-only YouTube focus tool: keyword blocking, Shorts hiding, optional recommendation hiding, and scheduled recreation time.",
   "permissions": [
     "storage"
   ],
