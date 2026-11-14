@@ -1,17 +1,16 @@
 # Changelog
 
-## 1.5.0
-
-- Added the **Hide distracting elements** master switch and 12 independently configurable options.
-- Added targeted hiding for Explore/Trending, Community posts, end-screen suggestions, Shorts shelves/navigation, notification and Create controls, merchandise, memberships, promotions, comments, and live chat.
-- Kept existing Shorts and recommendation controls working independently.
-- Added cooldown protection when disabling the distraction mode or loosening its active checklist.
-- Split element discovery into `distractions.js` to keep the content script focused and selectors maintainable.
+## 1.7.0
+- Added optional active-video viewing-time awareness.
+- Counts time only while a video is actively playing in the visible YouTube tab.
+- Paused videos, ended videos, unloaded media and background tabs are not counted.
+- Added optional 30, 45, 60 or 90 minute break reminders.
+- Session totals persist across page reloads in tab-scoped `sessionStorage` and reset after 15 minutes without active playback.
+- Timer interval runs only while tracking is enabled and the tab is visible.
+- Added focused unit tests for tracking, idle reset, reminders and session persistence.
 
 ## 1.6.0
+- Added optional autoplay disabling and default playback-speed selection.
 
-- Added optional autoplay disabling, including the video element and YouTube's autoplay toggle when its enabled state can be identified safely.
-- Added default playback speed choices: 1x, 1.25x, 1.5x, 1.75x, and 2x.
-- Applies the selected speed to each newly navigated video without repeatedly overriding manual speed changes during the same video.
-- Kept playback controls independent from the distraction master switch.
-- Added a small `playback.js` module and focused automated tests; no new dependencies or permissions.
+## 1.5.0
+- Added the Hide distracting elements master switch and individual controls.
