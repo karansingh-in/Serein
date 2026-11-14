@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "YT Keyword Blocker",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "A small, local-only YouTube keyword and focus tool with distraction controls, focus presets, playback preferences, viewing-time awareness, Shorts handling, and recreation scheduling.",
   "permissions": [
     "storage"

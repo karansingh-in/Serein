@@ -21,3 +21,13 @@
 
 ## 1.5.0
 - Added the Hide distracting elements master switch and individual controls.
+
+## 1.9.0
+- Kept the panel compact with native collapsible groups for Focus, Distractions, Playback, Time awareness and Schedule; Focus mode and Keywords remain immediately accessible.
+- Added dialog semantics and Escape-to-close keyboard behaviour.
+- No dependencies, permissions, background process or new storage format.
+
+## 1.9.0
+- Kept the panel compact with native collapsible groups for Focus, Distractions, Playback, Time awareness and Schedule; Focus mode and Keywords remain immediately accessible.
+- Added dialog semantics and Escape-to-close keyboard behaviour.
+- No dependencies, permissions, background process or new storage format.

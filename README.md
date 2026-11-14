@@ -4,6 +4,10 @@ A small, local-only YouTube focus extension. It filters videos by keyword, handl
 
 ## Features
 
+- **Compact settings panel:** Focus mode and keyword entry stay visible; less frequently changed controls live in native collapsible sections. Press Escape to close the panel.
+
+- **Compact settings panel:** Focus mode and keyword entry stay visible; less frequently changed controls live in native collapsible sections. Press Escape to close the panel.
+
 - **Focus presets:** Minimal, Study, and Deep Focus presets configure existing Shorts, recommendation, distraction-checklist, and autoplay settings. Manual changes are recognized as Custom. Presets do not overwrite keywords, playback speed, time-awareness preferences, theme, or recreation schedule.
 
 - **Keyword blocking:** case-insensitive matching, literal keyword text (including punctuation), flexible whitespace, and optional whole-word matching.
