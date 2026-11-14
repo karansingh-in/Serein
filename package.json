@@ -1,10 +1,10 @@
 {
   "name": "yt-keyword-blocker",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Local-only YouTube keyword and distraction blocker",
   "scripts": {
-    "check": "node --check matcher.js && node --check content.js",
-    "test": "node --test test/matcher.test.js"
+    "check": "node --check matcher.js && node --check distractions.js && node --check content.js",
+    "test": "node --test test/*.test.js"
   }
 }

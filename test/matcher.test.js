@@ -91,3 +91,16 @@ test('missing settings are handled safely', () => {
   assert.equal(isLoosening(null, base()), false);
   assert.equal(isLoosening(base(), null), true);
 });
+
+test('loosening detection protects distraction settings from instant removal', () => {
+  const base = {
+    keywords: [], wholeWord: true,
+    focus: { shorts: true, rabbit: true },
+    recreation: { enabled: false },
+    distractionMode: true,
+    distractions: { comments: true, liveChat: true }
+  };
+  assert.equal(isLoosening(base, { ...base, distractionMode: false }), true);
+  assert.equal(isLoosening(base, { ...base, distractions: { comments: false, liveChat: true } }), true);
+  assert.equal(isLoosening(base, { ...base, distractions: { comments: true, liveChat: true } }), false);
+});

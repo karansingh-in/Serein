@@ -92,6 +92,15 @@ function isLoosening(oldSettings, newSettings) {
     if (oldFocus[key] !== false && newFocus[key] === false) return true;
   }
 
+  if (oldValue.distractionMode && !newValue.distractionMode) return true;
+  if (oldValue.distractionMode && newValue.distractionMode) {
+    const oldDistractions = oldValue.distractions || {};
+    const newDistractions = newValue.distractions || {};
+    for (const key of Object.keys(oldDistractions)) {
+      if (oldDistractions[key] !== false && newDistractions[key] === false) return true;
+    }
+  }
+
   const oldMinutes = recMinutes(oldValue.recreation);
   const newMinutes = recMinutes(newValue.recreation);
   for (let minute = 0; minute < 1440; minute++) {

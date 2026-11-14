@@ -1,16 +1,26 @@
 # YT Keyword Blocker
 
-A small, local-only YouTube focus extension. It hides videos matching keywords, can remove Shorts entry points, optionally hides watch-page recommendations, and supports a scheduled recreation window.
+A small, local-only YouTube focus extension. It filters videos by keyword, handles Shorts, can hide selected YouTube interface distractions, and supports a scheduled recreation window.
 
 ## Features
 
 - **Keyword blocking:** case-insensitive matching, literal keyword text (including punctuation), flexible whitespace, and optional whole-word matching.
-- **Shorts focus:** hides Shorts shelves/navigation entries and redirects `/shorts/<video-id>` links to the regular watch page.
-- **Optional rabbit-hole blocking:** hides the watch-page recommendation sidebar and end-screen suggestion cards. The playlist queue is intentionally left alone.
+- **Shorts focus:** hides Shorts shelves/navigation and redirects `/shorts/<video-id>` links to regular watch pages.
+- **Recommendation blocking:** optionally hides the watch-page recommendation sidebar.
+- **Hide distracting elements:** one master switch with individual controls for:
+  - Trending / Explore
+  - Community posts
+  - End-screen recommendations
+  - Shorts shelves and navigation
+  - Notification bell and Create button
+  - Merchandise, membership and promotional sections
+  - Comments and live chat
 - **60-second loosening cooldown:** changes that allow more content through wait 60 seconds and can be cancelled. Tightening changes apply immediately.
 - **Recreation schedule:** daily local-time window, including overnight ranges. Blocking pauses during that window.
 - **Theme:** Auto (follows YouTube's theme), Light, or Dark.
 - **Local-only storage:** settings are saved using the browser extension storage API. No analytics, telemetry, remote requests, or external fonts.
+
+The distraction master switch is off by default. When enabled, the selected checklist items are hidden. Individual checklist choices are remembered when the master switch is turned off. The existing Shorts and recommendation controls remain available independently; while the distraction master is enabled, its Shorts shelf/navigation and end-screen choices take precedence over the corresponding legacy hiding behaviour.
 
 ## Install (Firefox)
 
@@ -28,23 +38,23 @@ A temporary add-on is removed when Firefox restarts. For permanent use, the exte
 
 1. Open YouTube and click the floating blocker button.
 2. Add one keyword per line (commas also separate keywords).
-3. Enable **Hide Shorts** and/or **Hide recommendations** as desired.
-4. Set a recreation window if you want blocking to pause at a regular time.
-5. Press **Save**.
+3. Configure **Focus** options.
+4. Enable **Hide distracting elements** and expand **Choose elements** to customize the checklist.
+5. Set a recreation window if desired.
+6. Press **Save**.
 
-Removing keywords, disabling either focus feature, changing whole-word matching to a less restrictive mode, or expanding the recreation window starts the 60-second cooldown. The pending change can be cancelled.
+Removing filters or disabling an active blocking feature starts the 60-second cooldown. The pending change can be cancelled.
 
 ## Tests
 
 Requires Node.js 18 or newer:
 
 ```sh
-node --check matcher.js
-node --check content.js
-node --test test/matcher.test.js
+npm run check
+npm test
 ```
 
-The matcher tests cover keyword matching, schedule boundaries, loosening detection, and Shorts URL conversion. They do not replace testing against YouTube's live DOM; YouTube changes its markup periodically, so Shorts shelves and recommendation selectors should be checked after installation.
+Tests cover keyword matching, schedule boundaries, loosening detection, Shorts URL conversion, distraction-option normalization and element-discovery behaviour using a lightweight DOM stub. They do not replace testing against YouTube's live DOM. YouTube changes its markup periodically, so each selector should be checked in Firefox after installation.
 
 ## Privacy
 
