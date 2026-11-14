@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "YT Keyword Blocker",
-  "version": "1.5.0",
-  "description": "A small, local-only YouTube focus tool with keyword blocking, distraction controls, Shorts handling, and scheduled recreation time.",
+  "version": "1.6.0",
+  "description": "A small, local-only YouTube focus tool with keyword blocking, distraction controls, playback preferences, Shorts handling, and scheduled recreation time.",
   "permissions": [
     "storage"
   ],
@@ -14,6 +14,7 @@
       "js": [
         "matcher.js",
         "distractions.js",
+        "playback.js",
         "content.js"
       ],
       "run_at": "document_idle"

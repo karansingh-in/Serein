@@ -16,6 +16,7 @@ A small, local-only YouTube focus extension. It filters videos by keyword, handl
   - Merchandise, membership and promotional sections
   - Comments and live chat
 - **60-second loosening cooldown:** changes that allow more content through wait 60 seconds and can be cancelled. Tightening changes apply immediately.
+- **Playback controls:** optionally disable YouTube autoplay and set a default speed of 1x, 1.25x, 1.5x, 1.75x, or 2x. The chosen speed is applied to each newly opened video; manual speed changes are not overwritten during the same video.
 - **Recreation schedule:** daily local-time window, including overnight ranges. Blocking pauses during that window.
 - **Theme:** Auto (follows YouTube's theme), Light, or Dark.
 - **Local-only storage:** settings are saved using the browser extension storage API. No analytics, telemetry, remote requests, or external fonts.
@@ -40,8 +41,9 @@ A temporary add-on is removed when Firefox restarts. For permanent use, the exte
 2. Add one keyword per line (commas also separate keywords).
 3. Configure **Focus** options.
 4. Enable **Hide distracting elements** and expand **Choose elements** to customize the checklist.
-5. Set a recreation window if desired.
-6. Press **Save**.
+5. Choose autoplay and default playback-speed preferences in **Playback**.
+6. Set a recreation window if desired.
+7. Press **Save**.
 
 Removing filters or disabling an active blocking feature starts the 60-second cooldown. The pending change can be cancelled.
 
@@ -54,7 +56,7 @@ npm run check
 npm test
 ```
 
-Tests cover keyword matching, schedule boundaries, loosening detection, Shorts URL conversion, distraction-option normalization and element-discovery behaviour using a lightweight DOM stub. They do not replace testing against YouTube's live DOM. YouTube changes its markup periodically, so each selector should be checked in Firefox after installation.
+Tests cover keyword matching, schedule boundaries, loosening detection, Shorts URL conversion, distraction-option normalization and element discovery, plus playback preference normalization, speed application, and autoplay-state handling using lightweight DOM stubs. They do not replace testing against YouTube's live DOM. YouTube changes its markup periodically, so each selector should be checked in Firefox after installation.
 
 ## Privacy
 
