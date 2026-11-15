@@ -237,11 +237,11 @@
 
   function positionPanel() {
     if (!panel || panel.hidden) return;
-    // Keep the panel directly above the fixed bottom-left launcher.
-    panel.style.left = '16px';
-    panel.style.right = 'auto';
-    panel.style.top = 'auto';
-    panel.style.bottom = '76px';
+    // Anchor the panel beneath the top-right Serein control.
+    panel.style.left = 'auto';
+    panel.style.right = '18px';
+    panel.style.top = '72px';
+    panel.style.bottom = 'auto';
   }
 
   function applyTheme() {
@@ -266,12 +266,12 @@
       <style>
         :host { all: initial; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: light; }
         * { box-sizing: border-box; }
-        .launcher { position: fixed; left: 16px; bottom: 20px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 4px 18px rgba(20,18,35,.14); transition: background .15s ease, border-color .15s ease, transform .15s ease; }
+        .launcher { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 4px 18px rgba(20,18,35,.14); transition: background .15s ease, border-color .15s ease, transform .15s ease; }
         .launcher:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); }
         .launcher svg { width: 21px; height: 21px; display: block; }
         .launcher-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
         .launcher:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .panel { position: fixed; left: 16px; bottom: 76px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--window-border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
+        .panel { position: fixed; right: 18px; top: 72px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--window-border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
         .panel[hidden] { display: none; }
         .header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
         .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -365,7 +365,7 @@
           <div class="actions"><button class="save" type="button">Save changes</button><button class="cancel" type="button" hidden>Cancel</button></div>
           <div class="note" aria-live="polite"></div>
         </div>
-        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.5</span></footer>
+        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.6</span></footer>
       </section>`;
     shadow.querySelector('.launcher').addEventListener('click', () => openPanel());
     trigger = shadow.querySelector('.launcher');
@@ -528,28 +528,33 @@
     const add = (selector, scope = document) => {
       try { scope.querySelectorAll(selector).forEach((element) => desired.add(element)); } catch (_) { /* YouTube DOM varies */ }
     };
-    // The entire right-hand masthead cluster contains Create, notifications and
-    // the account avatar. Hide the cluster, not individual labels that change by locale.
-    add('ytd-masthead #end, #masthead #end, ytd-masthead #buttons, #masthead #buttons');
-    add('ytd-masthead #guide-button, #masthead #guide-button');
-    // Homepage topic chips (Google, Android, Gaming, Music, etc.).
-    add('ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype="home"] #chips, ytd-rich-grid-renderer #chips, yt-chip-cloud-renderer, ytd-chip-cloud-renderer');
-    // Keep the You destination, but remove Home and Subscriptions from the guide.
+
+    // The original You entry is moved to the masthead by ensureHeaderActions().
     for (const entry of document.querySelectorAll('ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer')) {
       const anchor = entry.querySelector('a[href]');
       const href = anchor ? (anchor.getAttribute('href') || '') : '';
       const label = (anchor?.getAttribute('aria-label') || anchor?.textContent || entry.textContent || '').replace(/\s+/g, ' ').trim();
-      const isYou = href === '/feed/you' || href === '/you' || /^you$/i.test(label);
-      if (!isYou) desired.add(entry);
+      if (href === '/feed/you' || href === '/you' || /^you$/i.test(label)) desired.add(entry);
     }
-    // Explicit fallbacks for header controls in layouts where #end is structured differently.
-    add('ytd-notification-topbar-button-renderer, ytd-topbar-menu-button-renderer[button-renderer="create"], ytd-masthead #avatar-btn');
+
+    if (!settings.distractionMode) return desired;
+
+    // Hide the full guide column so the home feed can occupy its width.
+    add('ytd-guide-renderer, ytd-mini-guide-renderer, ytd-app #guide-content, ytd-app #guide-wrapper');
+    add('ytd-masthead #guide-button, #masthead #guide-button');
+
+    // Hide only the individual right-side controls; never hide the entire #end
+    // container because Serein and the relocated You shortcut live there.
+    add('ytd-masthead #end #buttons, ytd-notification-topbar-button-renderer, ytd-topbar-menu-button-renderer[button-renderer="create"], ytd-masthead #avatar-btn, ytd-masthead #buttons ytd-button-renderer, ytd-masthead #buttons yt-button-shape');
+    add('ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype="home"] #chips, ytd-rich-grid-renderer #chips, yt-chip-cloud-renderer, ytd-chip-cloud-renderer');
+
+    // Join controls beside Subscribe.
     for (const anchor of document.querySelectorAll('a[href*="/join"]')) {
       const button = anchor.closest('ytd-button-renderer, yt-button-shape, #sponsor-button, tp-yt-paper-button') || anchor;
       desired.add(button);
     }
-    // Gemini has appeared under several labels and wrapper elements. Match only
-    // the control itself, then hide its nearest button wrapper.
+
+    // Gemini controls vary by YouTube experiment and locale.
     for (const element of document.querySelectorAll('[aria-label*="Gemini" i], [title*="Gemini" i], button, yt-button-shape, ytd-button-renderer')) {
       const label = [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent]
         .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
@@ -565,28 +570,54 @@
       style = document.createElement('style');
       style.id = 'serein-youtube-cleanup';
       (document.head || document.documentElement).append(style);
-      style.textContent = `
-        [data-serein-ui-hidden] { display: none !important; }
-        html[data-serein-distractions="true"] ytd-masthead #center {
-          flex: 1 1 auto !important;
-          width: auto !important;
-          max-width: min(1100px, calc(100vw - 190px)) !important;
-          margin-inline: auto !important;
-        }
-        html[data-serein-distractions="true"] ytd-masthead #search,
-        html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
-      `;
     }
+    const cleanupCss = `
+      [data-serein-ui-hidden] { display: none !important; }
+      html[data-serein-distractions="true"] ytd-masthead #center { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; max-width: none !important; margin: 0 22px !important; }
+      html[data-serein-distractions="true"] ytd-masthead #search, html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
+      html[data-serein-distractions="true"] ytd-app #contentContainer,
+      html[data-serein-distractions="true"] ytd-app[guide-persistent-and-visible] #page-manager,
+      html[data-serein-distractions="true"] ytd-app #page-manager { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: none !important; }
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #primary { margin-left: auto !important; margin-right: auto !important; }
+      /* Do not set fixed thumbnail heights: YouTube retains its native 16:9 image sizing. */
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #primary,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer { width: 100% !important; max-width: none !important; }
+      #serein-header-actions { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: 10px; }
+      #serein-you-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 48px; height: 40px; padding: 0 9px; border-radius: 20px; color: var(--yt-spec-text-primary, currentColor); text-decoration: none; font: 500 12px Roboto, Arial, sans-serif; white-space: nowrap; }
+      #serein-you-link:hover { background: var(--yt-spec-badge-chip-background, rgba(128,128,128,.18)); }
+      #serein-you-link svg { width: 21px; height: 21px; }
+      #serein-host { position: static !important; width: 40px !important; height: 40px !important; margin: 0 !important; flex: 0 0 40px !important; }
+      #serein-host .launcher { position: relative !important; inset: auto !important; width: 40px !important; height: 40px !important; border-radius: 50% !important; box-shadow: none !important; }
+      #serein-host .panel { position: fixed !important; left: auto !important; right: 18px !important; top: 72px !important; bottom: auto !important; }
+    `;
+    if (style.textContent !== cleanupCss) style.textContent = cleanupCss;
 
-    if (!settings.distractionMode) {
-      document.querySelectorAll('[data-serein-ui-hidden]').forEach((element) => setUiHidden(element, false));
-      return;
-    }
     const desired = collectYouTubeChromeToHide();
     document.querySelectorAll('[data-serein-ui-hidden]').forEach((element) => {
       if (!desired.has(element)) setUiHidden(element, false);
     });
     desired.forEach((element) => setUiHidden(element, true));
+    ensureHeaderActions();
+  }
+
+  function ensureHeaderActions() {
+    const end = document.querySelector('ytd-masthead #end, #masthead #end');
+    if (!end) return;
+    let actions = document.getElementById('serein-header-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.id = 'serein-header-actions';
+      const you = document.createElement('a');
+      you.id = 'serein-you-link';
+      you.href = '/feed/you';
+      you.setAttribute('aria-label', 'You');
+      you.title = 'You';
+      you.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.2 20c.7-3.4 3.1-5.3 6.8-5.3s6.1 1.9 6.8 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>You</span>';
+      actions.append(you);
+    }
+    if (actions.parentElement !== end) end.append(actions);
+    if (host && host.parentElement !== actions) actions.append(host);
   }
 
   function installSereinBrand() {
@@ -609,16 +640,18 @@
 
   function placeTrigger() {
     if (!host) return;
-    // Serein launcher stays fixed at the bottom-left, as in the earlier design.
-    host.style.position = 'fixed';
-    host.style.left = '16px';
-    host.style.bottom = '20px';
-    host.style.width = '44px';
-    host.style.height = '44px';
+    host.style.position = 'static';
+    host.style.left = 'auto';
+    host.style.right = 'auto';
+    host.style.top = 'auto';
+    host.style.bottom = 'auto';
+    host.style.width = '40px';
+    host.style.height = '40px';
     host.style.display = 'block';
     host.style.margin = '0';
     host.style.zIndex = '2147483647';
-    if (host.parentElement !== document.body && document.body) document.body.append(host);
+    ensureHeaderActions();
+    if (!host.isConnected && document.body) document.body.append(host);
     positionPanel();
     installSereinBrand();
   }
