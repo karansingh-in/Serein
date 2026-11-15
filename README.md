@@ -2,56 +2,33 @@
 
 **Keep what matters. Remove the noise.**
 
-Serein is a lightweight, local-only Firefox extension for cleaning up YouTube. It filters video cards by title and channel name, hides Shorts and selected distraction surfaces, and keeps its settings on-device.
+Serein is a lightweight, local-only Firefox extension that cleans up YouTube. It supports title/channel keyword blocking and inclusion, Shorts controls, and optional distraction controls.
 
-## Features
+## Current interface
 
-### Content filtering
-- Block videos whose title or channel name matches one or more keywords.
-- Optionally show only videos matching the include list.
-- Case-insensitive matching with optional whole-word matching.
-- Blocked terms always take priority over included terms.
+When **Disable distractions** is enabled, Serein simplifies YouTube's interface: it replaces the YouTube logo with a Serein home link, hides the hamburger, Home and Subscriptions navigation entries, topic chips, Create/notifications/account controls, and leaves the You page entry, search field, and microphone available. The search area expands into the freed space. On video pages, Join and Gemini controls are hidden as well. Turning Disable distractions off restores these YouTube controls.
 
-### Distraction controls
-- A master **Disable distractions** switch reveals the distraction checklist.
-- Hide Shorts and redirect Shorts URLs to their regular watch page.
-- Hide the watch-page recommendation column.
-- Optionally hide end-screen suggestions and comments.
-- Optionally disable autoplay.
+## Privacy
 
-### Recreation time
-Pause Serein's filters during a configurable daily time window. The window supports overnight ranges.
+- Settings are stored locally using Firefox storage.
+- No accounts, cloud services, analytics, or telemetry.
+- Only the `storage` permission is requested.
 
-### Appearance
-- Light, dark, and automatic themes.
-- Light mode is the default for new installations.
-- Blue interface accents; green/red status indicator for active/off filtering. The status sits at the top-right of the panel header. The YouTube Create action is hidden while notifications remain available.
+## Install (temporary)
 
-## Privacy and permissions
-- Settings are stored locally using Firefox extension storage.
-- No accounts, cloud sync, analytics, telemetry, or external services.
-- Hides YouTube’s Create action from the top bar.
-- The only declared permission is `storage`.
-
-## Install in Firefox
 1. Download and extract the release ZIP.
 2. Open `about:debugging#/runtime/this-firefox`.
-3. Select **Load Temporary Add-on**.
-4. Choose the extracted `manifest.json`.
-
-For a permanent public installation, the extension must be packaged and distributed through an appropriate Firefox add-on channel.
+3. Choose **Load Temporary Add-on** and select `manifest.json`.
 
 ## Development
-Requires Node.js 18 or newer.
+
+Requires Node.js 18 or newer for tests.
 
 ```sh
 npm test
 npm run check
 ```
 
-Automated tests cover the matcher, settings/release invariants, and static product UI requirements. They do not replace manual testing against live YouTube pages; YouTube's DOM changes over time.
+## Project
 
-## Branding
-**Serein** · `s e r e i n`  
-Built by [karansingh-in](https://github.com/karansingh-in)  
-Repository: [karansingh-in/Serein](https://github.com/karansingh-in/Serein)
+Built by [karansingh-in](https://github.com/karansingh-in).

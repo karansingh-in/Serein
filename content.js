@@ -118,6 +118,9 @@
     scheduleScan();
     if (settings.recreation.enabled && !scheduleClock) scheduleClock = setInterval(scheduleScan, 60000);
     if (!settings.recreation.enabled && scheduleClock) { clearInterval(scheduleClock); scheduleClock = null; }
+    document.documentElement.toggleAttribute('data-serein-distractions', settings.distractionMode);
+    installYouTubeCleanup();
+    installSereinBrand();
     applyTheme();
   }
 
@@ -322,7 +325,7 @@
       <section class="panel" role="dialog" aria-label="Serein filters" hidden>
         <header class="header">
           <div class="brand-row">
-            <div class="brand-lockup"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.8 18.9C8 9.6 16 4.6 26.3 5c-.3 9.7-5.2 18-15.5 21-4.1 1.2-7-2.8-5-7.1Z" fill="#E62117"/><path d="M8 24.3c4.2-5.5 9.2-10.2 15.9-15.2" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M8 24.3 4.8 27.5" fill="none" stroke="#E62117" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
+            <div class="brand-lockup"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.5 19C6.8 12.4 11.2 7.1 17.2 5.1c4.8-1.6 9.1-.7 11.7 1.1-.5 6.2-2.7 11.2-6.6 15.1-4.1 4.1-9.2 6.1-13 4.8C6 25 4.5 22.5 5.5 19Z" fill="#E62117"/><path d="M6.2 23.5c3.8-3 7.4-6.3 10.7-9.7 2.4-2.4 4.7-4.6 7.3-6.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 23.5 3.6 29" fill="none" stroke="#E62117" stroke-width="1.9" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
             <div class="status"><span class="dot" data-status-dot></span><span data-status>Filters active</span></div>
           </div>
           <div class="tagline">Keep what matters. Remove the noise.</div>
@@ -390,6 +393,7 @@
     }));
     (document.body || document.documentElement).append(host);
     installYouTubeCleanup();
+    installSereinBrand();
     fillUI();
     applyTheme();
     placeTrigger();
@@ -496,27 +500,88 @@
   }
 
   function installYouTubeCleanup() {
-    if (document.getElementById('serein-youtube-cleanup')) return;
-    const style = document.createElement('style');
-    style.id = 'serein-youtube-cleanup';
-    style.textContent = `
-      /* Remove YouTube's Create action without affecting the notification control. */
-      ytd-topbar-menu-button-renderer:has(button[aria-label^="Create"]),
-      ytd-topbar-menu-button-renderer:has(a[aria-label^="Create"]),
-      ytd-button-renderer:has(button[aria-label^="Create"]),
-      yt-button-shape:has(button[aria-label^="Create"]),
-      #buttons button[aria-label^="Create"],
-      #buttons a[aria-label^="Create"],
-      button[aria-label^="Create"],
-      a[aria-label^="Create"],
-      ytd-topbar-menu-button-renderer:has([title^="Create"]) { display: none !important; }
+    let style = document.getElementById('serein-youtube-cleanup');
+    const createStyle = !style;
+    if (createStyle) {
+      style = document.createElement('style');
+      style.id = 'serein-youtube-cleanup';
+      (document.head || document.documentElement).append(style);
+    }
+    if (createStyle) style.textContent = `
+      [data-serein-ui-hidden] { display: none !important; }
+      /* Serein distraction mode: retain only the You page entry, search, and voice search. */
+      html[data-serein-distractions="true"] ytd-masthead #guide-button,
+      html[data-serein-distractions="true"] ytd-masthead #end,
+      html[data-serein-distractions="true"] ytd-feed-filter-chip-bar-renderer,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #chips,
+      html[data-serein-distractions="true"] yt-chip-cloud-renderer,
+      html[data-serein-distractions="true"] ytd-guide-entry-renderer:has(a[href="/"]),
+      html[data-serein-distractions="true"] ytd-guide-entry-renderer:has(a[href^="/feed/subscriptions"]),
+      html[data-serein-distractions="true"] ytd-mini-guide-entry-renderer:has(a[href="/"]),
+      html[data-serein-distractions="true"] ytd-mini-guide-entry-renderer:has(a[href^="/feed/subscriptions"]),
+      /* The /feed/you guide entry is deliberately not hidden. */
+      html[data-serein-distractions="true"] ytd-topbar-menu-button-renderer:has(button[aria-label^="Create"]),
+      html[data-serein-distractions="true"] ytd-notification-topbar-button-renderer,
+      html[data-serein-distractions="true"] ytd-masthead #avatar-btn,
+      html[data-serein-distractions="true"] ytd-masthead #buttons ytd-topbar-menu-button-renderer,
+      html[data-serein-distractions="true"] ytd-masthead #buttons ytd-button-renderer { display: none !important; }
+
+      /* Keep the search field and microphone usable in the freed header space. */
+      html[data-serein-distractions="true"] ytd-masthead #center {
+        flex: 1 1 auto !important;
+        max-width: min(900px, calc(100vw - 250px)) !important;
+        margin-inline: auto !important;
+      }
+      html[data-serein-distractions="true"] ytd-masthead #search,
+      html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
+
+      /* Remove Join beside Subscribe and Gemini/Ask Gemini on watch pages. */
+      html[data-serein-distractions="true"] #sponsor-button,
+      html[data-serein-distractions="true"] ytd-video-owner-renderer #sponsor-button,
+      html[data-serein-distractions="true"] ytd-button-renderer:has(a[href*="/join"]),
+      html[data-serein-distractions="true"] yt-button-shape:has(a[href*="/join"]),
+      html[data-serein-distractions="true"] button[aria-label*="Gemini" i],
+      html[data-serein-distractions="true"] ytd-button-renderer:has(button[aria-label*="Gemini" i]),
+      html[data-serein-distractions="true"] yt-button-shape:has(button[aria-label*="Gemini" i]),
+      html[data-serein-distractions="true"] button[title*="Gemini" i] { display: none !important; }
     `;
-    (document.head || document.documentElement).append(style);
+    const hiddenAttr = 'data-serein-ui-hidden';
+    if (settings.distractionMode) {
+      for (const node of document.querySelectorAll('button, a, yt-button-shape, ytd-button-renderer')) {
+        const label = [node.getAttribute('aria-label'), node.getAttribute('title'), node.textContent]
+          .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        if (!/^(join|ask gemini|gemini)$/i.test(label)) continue;
+        const target = node.closest('ytd-button-renderer, yt-button-shape') || node;
+        target.setAttribute(hiddenAttr, '');
+      }
+    } else {
+      for (const node of document.querySelectorAll('[' + hiddenAttr + ']')) {
+        node.removeAttribute(hiddenAttr);
+      }
+    }
+  }
+
+  function installSereinBrand() {
+    const logo = document.querySelector('ytd-masthead #logo');
+    if (!logo || logo.dataset.sereinBrand === 'true') return;
+    logo.dataset.sereinBrand = 'true';
+    logo.href = '/';
+    logo.setAttribute('aria-label', 'Serein home');
+    logo.setAttribute('title', 'Serein — Home');
+    logo.innerHTML = `
+      <span class="serein-masthead-brand" style="display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:40px;color:var(--yt-spec-text-primary,#f1f1f1);font-family:Inter,Arial,sans-serif;font-size:19px;font-weight:550;letter-spacing:.12em;text-transform:lowercase">
+        <svg width="27" height="27" viewBox="0 0 128 128" aria-hidden="true" focusable="false">
+          <path d="M18 75 C25 47 43 27 69 21 C83 17 98 19 111 25 C108 49 98 72 80 89 C66 102 48 110 34 105 C21 100 14 89 18 75Z" fill="#E62117"/>
+          <path d="M23 91 C40 78 56 63 72 47 C83 36 94 29 105 24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+          <path d="M23 91 C19 98 15 105 11 113" fill="none" stroke="#E62117" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <span>s e r e i n</span>
+      </span>`;
   }
 
   function placeTrigger() {
     if (!host) return;
-    // Serein intentionally lives in the bottom-left corner, away from YouTube's search/header controls.
+    // Serein launcher stays fixed at the bottom-left, as in the earlier design.
     host.style.position = 'fixed';
     host.style.left = '16px';
     host.style.bottom = '20px';
@@ -527,6 +592,7 @@
     host.style.zIndex = '2147483647';
     if (host.parentElement !== document.body && document.body) document.body.append(host);
     positionPanel();
+    installSereinBrand();
   }
 
   async function init() {
@@ -540,7 +606,7 @@
       scheduleScan();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-    document.addEventListener('yt-navigate-finish', () => { placeTrigger(); scheduleScan(); });
+    document.addEventListener('yt-navigate-finish', () => { installSereinBrand(); placeTrigger(); scheduleScan(); });
     document.addEventListener('yt-page-data-updated', scheduleScan);
     const darkObserver = new MutationObserver(() => { if (settings.theme === 'auto') applyTheme(); });
     darkObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['dark'] });

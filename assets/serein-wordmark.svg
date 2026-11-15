@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" role="img" aria-label="s e r e i n">
-  <title>s e r e i n</title>
-  <text x="180" y="45" text-anchor="middle" fill="#7771B8" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="40" font-weight="500" letter-spacing="8">s e r e i n</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 80">
+  <rect width="420" height="80" fill="none"/>
+  <g transform="translate(8 4) scale(.56)">
+    <path d="M18 76 C23 55 35 35 54 25 C72 15 94 18 111 26 C109 48 101 68 87 84 C73 100 53 110 36 106 C21 103 13 91 18 76Z" fill="#E62117"/>
+    <path d="M21 94 C34 82 47 70 59 58 C74 43 90 31 106 25" fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round"/>
+    <path d="M21 94 C17 101 13 109 9 118" fill="none" stroke="#E62117" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="88" y="52" font-family="Inter, Arial, sans-serif" font-size="31" font-weight="550" letter-spacing="5" fill="#24232b">s e r e i n</text>
 </svg>
