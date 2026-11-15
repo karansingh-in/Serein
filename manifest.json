@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Serein",
-  "version": "2.1.0",
-  "description": "A lightweight, local-only YouTube cleaner with keyword filters, distraction controls, playback preferences, viewing-time awareness, Shorts handling, and scheduling.",
+  "version": "2.2.0",
+  "description": "A lightweight, local-only YouTube cleaner with keyword and channel filters, distraction controls, playback preferences, viewing-time awareness, Shorts handling, and scheduling.",
   "permissions": [
     "storage"
   ],

@@ -13,3 +13,10 @@
 
 - Added active viewing-time awareness and break reminders.
 - Added focus presets and refreshed the settings interface.
+
+## 2.2.0
+
+- Added channel blocklist and allowlist filters using channel names and handles.
+- Channel blocklist takes priority over the channel allowlist.
+- Integrated channel filter changes with the 60-second loosening cooldown.
+- Kept settings local and added no permissions or dependencies.

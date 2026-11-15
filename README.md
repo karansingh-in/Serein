@@ -9,6 +9,7 @@ Serein is a lightweight, local-only Firefox extension that helps make YouTube qu
 - **Block keywords:** Hide videos whose card text matches one or more terms.
 - **Only show matching videos:** When this list is not empty, keep video cards whose title or channel name matches at least one term. For example, entering `PW` keeps videos with `PW` in the title or channel name. Multiple terms use OR matching.
 - **Filter interaction:** Block keywords always take priority over the include list. If the include list is empty, it does not filter anything.
+- **Channel filters:** Block videos from matching channel names/handles, or optionally show videos only from channels on an allowlist. Channel filters apply to video cards, not channel directory cards. Blocked channels take priority over allowed channels.
 - **Matching options:** Case-insensitive matching, literal keyword text, flexible whitespace, and optional whole-word matching apply to both keyword fields.
 - **60-second loosening cooldown:** Changes that can let more content through wait 60 seconds and can be cancelled. More restrictive changes apply immediately.
 - **Shorts focus:** Hides Shorts shelves/navigation and redirects `/shorts/<video-id>` links to regular watch pages.
@@ -36,11 +37,12 @@ A temporary add-on is removed when Firefox restarts. For permanent use, the exte
 1. Open YouTube and click the Serein button.
 2. Add terms under **Block keywords** to hide matching content.
 3. Add terms under **Only show videos matching** to keep videos whose title or channel matches at least one term.
-4. Choose **Minimal**, **Study**, or **Deep Focus**, or adjust settings manually.
-5. Configure Focus, Distractions, Playback, Time awareness, and Schedule as needed.
-6. Press **Save**.
+4. Expand **Channel filters** to block specific channels or allow only selected channels.
+5. Choose **Minimal**, **Study**, or **Deep Focus**, or adjust settings manually.
+6. Configure Focus, Distractions, Playback, Time awareness, and Schedule as needed.
+7. Press **Save**.
 
-Removing a block keyword, expanding the include list, clearing a non-empty include list, or disabling an active blocking feature may trigger the 60-second cooldown. Tightening filters applies immediately.
+Removing a block keyword or blocked channel, expanding or clearing a non-empty video/channel allowlist, broadening whole-word matching on an allowlist, or disabling an active blocking feature may trigger the 60-second cooldown. Adding block terms or narrowing an allowlist applies immediately. Tightening filters applies immediately.
 
 ## Tests
 

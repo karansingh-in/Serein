@@ -71,6 +71,10 @@ function matchesIncluded(title, channel, matcher) {
     (typeof channel === 'string' && matcher(channel));
 }
 
+function matchesChannel(channel, matcher) {
+  return typeof channel === 'string' && typeof matcher === 'function' && matcher(channel);
+}
+
 function normalizeKeyword(keyword) {
   return String(keyword).trim().split(/\s+/).filter(Boolean).join(' ').toLowerCase();
 }
@@ -86,11 +90,14 @@ function isLoosening(oldSettings, newSettings) {
     if (!newKeywords.has(keyword)) return true;
   }
 
-  if (
-    oldKeywords.size > 0 &&
-    oldValue.wholeWord === false &&
-    newValue.wholeWord !== false
-  ) return true;
+  const oldBlockedChannels = new Set((oldValue.blockedChannels || []).map(normalizeKeyword).filter(Boolean));
+  const newBlockedChannels = new Set((newValue.blockedChannels || []).map(normalizeKeyword).filter(Boolean));
+  for (const channel of oldBlockedChannels) {
+    if (!newBlockedChannels.has(channel)) return true;
+  }
+
+  if (oldValue.wholeWord === false && newValue.wholeWord !== false &&
+    (oldKeywords.size > 0 || oldBlockedChannels.size > 0)) return true;
 
   const oldIncluded = new Set((oldValue.includeKeywords || []).map(normalizeKeyword).filter(Boolean));
   const newIncluded = new Set((newValue.includeKeywords || []).map(normalizeKeyword).filter(Boolean));
@@ -100,6 +107,18 @@ function isLoosening(oldSettings, newSettings) {
       if (!oldIncluded.has(keyword)) return true;
     }
   }
+
+  const oldAllowedChannels = new Set((oldValue.allowedChannels || []).map(normalizeKeyword).filter(Boolean));
+  const newAllowedChannels = new Set((newValue.allowedChannels || []).map(normalizeKeyword).filter(Boolean));
+  if (oldAllowedChannels.size > 0 && newAllowedChannels.size === 0) return true;
+  if (oldAllowedChannels.size > 0) {
+    for (const channel of newAllowedChannels) {
+      if (!oldAllowedChannels.has(channel)) return true;
+    }
+  }
+
+  if (oldValue.wholeWord !== false && newValue.wholeWord === false &&
+    (oldIncluded.size > 0 || oldAllowedChannels.size > 0)) return true;
 
   const oldFocus = oldValue.focus || {};
   const newFocus = newValue.focus || {};
@@ -136,12 +155,13 @@ function shortsRedirectTarget(pathname, origin) {
   return match[1] ? origin + '/watch?v=' + match[1] : origin + '/';
 }
 
-globalThis.YTKBMatcher = { buildMatcher, matchesIncluded, isRecreationTime, isLoosening, shortsRedirectTarget };
+globalThis.YTKBMatcher = { buildMatcher, matchesIncluded, matchesChannel, isRecreationTime, isLoosening, shortsRedirectTarget };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     buildMatcher,
     matchesIncluded,
+    matchesChannel,
     isRecreationTime,
     isLoosening,
     shortsRedirectTarget

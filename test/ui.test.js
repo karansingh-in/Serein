@@ -10,6 +10,9 @@ test('settings panel keeps the primary controls visible and groups secondary con
   assert.match(source, /label\('Block keywords'\), textarea, hint/);
   assert.match(source, /includeLabel, includeTextarea, includeHint/);
   assert.match(source, /includeTextarea\.value = settings\.includeKeywords/);
+  assert.match(source, /settingsGroup\('Channel filters'/);
+  assert.match(source, /blockedChannelField\.field\.value = settings\.blockedChannels/);
+  assert.match(source, /allowedChannelField\.field\.value = settings\.allowedChannels/);
   for (const group of ['Focus', 'Distractions', 'Playback', 'Time awareness', 'Schedule']) {
     assert.ok(source.includes(`settingsGroup('${group}'`), `missing ${group} settings group`);
   }

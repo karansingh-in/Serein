@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const {
   buildMatcher,
   matchesIncluded,
+  matchesChannel,
   isRecreationTime,
   isLoosening,
   shortsRedirectTarget
@@ -38,6 +39,34 @@ test('include matching checks title or channel with the shared matcher rules', (
   assert.equal(matchesIncluded('A tutorial', 'PWNation', match), false);
   assert.equal(matchesIncluded('A MACHINE   LEARNING guide', 'Other', match), true);
   assert.equal(matchesIncluded('PW', 'channel', buildMatcher(['PW channel'], true)), false);
+});
+
+
+test('channel matching uses the shared case-insensitive whole-word matcher', () => {
+  const match = buildMatcher(['Fireship', '@freecodecamp'], true);
+  assert.equal(matchesChannel('Fireship', match), true);
+  assert.equal(matchesChannel('@freecodecamp', match), true);
+  assert.equal(matchesChannel('Fireship Clips', match), true);
+  assert.equal(matchesChannel('Fireshipper', match), false);
+  assert.equal(matchesChannel('', match), false);
+});
+
+test('channel block and allow list changes use conservative cooldown rules', () => {
+  const oldSettings = withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship'] });
+  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: [], allowedChannels: ['Fireship'] })), true);
+  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship', 'freeCodeCamp'] })), true);
+  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: [] })), true);
+  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship'] })), false);
+  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel', 'other'], allowedChannels: ['Fireship'] })), false);
+  assert.equal(isLoosening(withSettings({ blockedChannels: [], allowedChannels: [] }), withSettings({ blockedChannels: ['spam'], allowedChannels: ['Fireship'] })), false);
+});
+
+test('whole-word changes account for channel allow and block filters', () => {
+  const block = withSettings({ blockedChannels: ['spam'], wholeWord: false });
+  assert.equal(isLoosening(block, { ...block, wholeWord: true }), true);
+  const allow = withSettings({ allowedChannels: ['Fireship'], wholeWord: true });
+  assert.equal(isLoosening(allow, { ...allow, wholeWord: false }), true);
+  assert.equal(isLoosening(allow, { ...allow, wholeWord: true }), false);
 });
 
 test('matcher can disable whole-word matching', () => {
