@@ -15,6 +15,7 @@
     keywords: [],
     includeKeywords: [],
     wholeWord: true,
+    distractionMode: true,
     focus: { shorts: true, recommendations: true, endScreens: false, comments: false, autoplay: false },
     recreation: { enabled: false, start: '18:00', end: '20:00' },
     theme: 'light'
@@ -68,6 +69,7 @@
       keywords: blocked,
       includeKeywords: included,
       wholeWord: s.wholeWord !== false,
+      distractionMode: typeof s.distractionMode === 'boolean' ? s.distractionMode : true,
       focus,
       recreation: {
         enabled: !!rec.enabled,
@@ -156,11 +158,11 @@
     if (!inRecreation) {
       if (settings.keywords.length || settings.includeKeywords.length) {
         for (const card of document.querySelectorAll(CARD_SELECTORS)) {
-          if (settings.focus.shorts && card.querySelector('a[href^="/shorts/"]')) { desired.add(card); continue; }
+          if (settings.distractionMode && settings.focus.shorts && card.querySelector('a[href^="/shorts/"]')) { desired.add(card); continue; }
           if (!matchesCard(card)) desired.add(card);
         }
       }
-      if (settings.focus.shorts) {
+      if (settings.distractionMode && settings.focus.shorts) {
         for (const element of document.querySelectorAll('ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ytd-shorts, ytm-reel-shelf-renderer')) desired.add(element);
         for (const element of document.querySelectorAll('ytd-rich-section-renderer')) {
           if (element.querySelector('ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], a[href^="/shorts"]')) desired.add(element);
@@ -170,13 +172,13 @@
           if (target) desired.add(target);
         }
       }
-      if (settings.focus.recommendations) {
+      if (settings.distractionMode && settings.focus.recommendations) {
         for (const element of document.querySelectorAll('ytd-watch-next-secondary-results-renderer')) desired.add(element);
       }
-      if (settings.focus.endScreens) {
+      if (settings.distractionMode && settings.focus.endScreens) {
         for (const element of document.querySelectorAll('.ytp-endscreen-content, .ytp-ce-element, .ytp-ce-covering-overlay')) desired.add(element);
       }
-      if (settings.focus.comments) {
+      if (settings.distractionMode && settings.focus.comments) {
         for (const element of document.querySelectorAll('ytd-comments#comments, #comments')) desired.add(element);
       }
     }
@@ -196,16 +198,16 @@
   }
 
   function scan() {
-    const redirect = settings.focus.shorts && SereinMatcher.shortsRedirectTarget(location.pathname, location.origin);
+    const redirect = settings.distractionMode && settings.focus.shorts && SereinMatcher.shortsRedirectTarget(location.pathname, location.origin);
     if (redirect) { location.replace(redirect); return; }
     const desired = collectHidden();
     for (const element of document.querySelectorAll('[' + HIDDEN_ATTR + ']')) if (!desired.has(element)) show(element);
     for (const element of desired) hide(element);
-    if (settings.focus.autoplay) {
+    if (settings.distractionMode && settings.focus.autoplay) {
       const autoplay = document.querySelector('.ytp-autonav-toggle-button[aria-checked="true"]');
       if (autoplay) autoplay.click();
     }
-    if (status) status.textContent = isRecreationTime() ? 'Filters paused by schedule' : 'Filters active';
+    updateStatus();
   }
 
   function scheduleScan() {
@@ -265,13 +267,18 @@
         .launcher svg { width: 21px; height: 21px; display: block; }
         .launcher-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
         .launcher:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .panel { position: fixed; left: 16px; bottom: 76px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
+        .panel { position: fixed; left: 16px; bottom: 76px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--window-border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
         .panel[hidden] { display: none; }
         .header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+        .brand-row { display: flex; align-items: center; gap: 10px; }
+        .brand-mark { width: 23px; height: 23px; display: block; flex: 0 0 23px; }
         .brand { font-size: 17px; font-weight: 550; letter-spacing: .04em; text-transform: lowercase; }
         .tagline { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: .01em; }
         .status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; color: var(--muted); }
-        .dot { width: 7px; height: 7px; border-radius: 50%; background: #7771b8; box-shadow: 0 0 0 3px rgba(119,113,184,.12); }
+        .dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+        .dot.active { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.13); }
+        .launcher-dot { background: #dc2626; }
+        .launcher-dot.active { background: #16a34a; }
         .close { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; }
         .body { padding: 18px 20px 20px; }
         .section-title { margin: 0 0 10px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
@@ -288,21 +295,24 @@
         .switch:checked::after { transform: translateX(15px); }
         .section { padding-top: 19px; margin-top: 18px; border-top: 1px solid var(--border); }
         .theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-        .theme-button { min-height: 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; cursor: pointer; }
-        .theme-button[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent); }
+        .theme-button { min-height: 32px; border: 1px solid var(--border); border-radius: 5px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+        .theme-button[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent); font-weight: 650; }
+        .distraction-checklist { display: none; padding-left: 12px; border-left: 2px solid var(--border); margin: 6px 0 0 2px; }
+        .distraction-checklist.visible { display: block; }
         .schedule { display: none; margin-top: 12px; }
         .schedule.visible { display: block; }
         .time-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
         .time-row input { min-width: 0; flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 7px; color: var(--text); background: var(--surface); }
         .actions { display: flex; gap: 8px; margin-top: 18px; }
-        .save { flex: 1; min-height: 40px; border: 0; border-radius: 10px; background: var(--accent); color: white; font-size: 13px; font-weight: 650; cursor: pointer; }
-        .cancel { min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--text); font-size: 12px; cursor: pointer; }
+        .save { flex: 1; min-height: 38px; border: 0; border-radius: 5px; background: var(--accent); color: white; font-size: 13px; font-weight: 650; cursor: pointer; }
+        .save:disabled { opacity: .6; cursor: wait; }
+        .cancel { min-height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 5px; background: transparent; color: var(--text); font-size: 12px; cursor: pointer; }
         .note { min-height: 16px; margin-top: 9px; color: var(--muted); font-size: 11px; }
         .footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 13px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
         .footer a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
         .footer a:hover { color: var(--text); }
-        :host([data-theme="light"]) { --bg: #ffffff; --surface: #f7f7fa; --text: #24232b; --muted: #777582; --border: #e8e7ee; --accent: #7771b8; --accent-soft: #f0eff9; --accent-text: #625ca1; --switch-off: #c9c8d0; color-scheme: light; }
-        :host([data-theme="dark"]) { --bg: #141319; --surface: #1d1b25; --text: #f3f1f8; --muted: #a09dab; --border: #302d3a; --accent: #a9a3d8; --accent-soft: #292638; --accent-text: #d8d4f5; --switch-off: #4b4855; color-scheme: dark; }
+        :host([data-theme="light"]) { --bg: #ffffff; --surface: #f7f7fa; --text: #24232b; --muted: #777582; --border: #e8e7ee; --window-border: #dfe2e8; --accent: #2563eb; --accent-soft: #edf3ff; --accent-text: #1d4ed8; --switch-off: #c9cbd2; color-scheme: light; }
+        :host([data-theme="dark"]) { --bg: #14161b; --surface: #1d2028; --text: #f3f5f8; --muted: #a0a5af; --border: #303641; --window-border: #454b56; --accent: #60a5fa; --accent-soft: #1e2c43; --accent-text: #bfdbfe; --switch-off: #4b515c; color-scheme: dark; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
       </style>
       <button class="launcher" type="button" aria-expanded="false" aria-label="Open Serein filters" title="Serein">
@@ -311,9 +321,9 @@
       </button>
       <section class="panel" role="dialog" aria-label="Serein filters" hidden>
         <header class="header">
-          <div class="brand">s e r e i n</div>
+          <div class="brand-row"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.8 18.9C8 9.6 16 4.6 26.3 5c-.3 9.7-5.2 18-15.5 21-4.1 1.2-7-2.8-5-7.1Z" fill="#E62117"/><path d="M8 24.3c4.2-5.5 9.2-10.2 15.9-15.2" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
           <div class="tagline">Keep what matters. Remove the noise.</div>
-          <div class="status"><span class="dot"></span><span data-status>Filters active</span><button class="close" type="button" aria-label="Close settings">×</button></div>
+          <div class="status"><span class="dot" data-status-dot></span><span data-status>Filters active</span><button class="close" type="button" aria-label="Close settings">×</button></div>
         </header>
         <div class="body">
           <p class="section-title">Content filtering</p>
@@ -326,19 +336,22 @@
           <div class="check-row" style="margin-top:10px;border:0"><span class="check-label">Match whole words only</span><input class="switch" type="checkbox" data-field="whole"></div>
           <div class="section">
             <p class="section-title">Distraction controls</p>
+            <div class="check-row"><span class="check-label">Disable distractions</span><input class="switch" type="checkbox" data-field="distractionMode"></div>
+            <div class="distraction-checklist" data-distraction-checklist>
             <div class="check-row"><span class="check-label">Hide Shorts</span><input class="switch" type="checkbox" data-field="shorts"></div>
             <div class="check-row"><span class="check-label">Hide recommendations</span><input class="switch" type="checkbox" data-field="recommendations"></div>
             <div class="check-row"><span class="check-label">Hide end-screen suggestions</span><input class="switch" type="checkbox" data-field="endScreens"></div>
             <div class="check-row"><span class="check-label">Hide comments</span><input class="switch" type="checkbox" data-field="comments"></div>
             <div class="check-row"><span class="check-label">Disable autoplay</span><input class="switch" type="checkbox" data-field="autoplay"></div>
+            </div>
           </div>
           <div class="section">
             <p class="section-title">Appearance</p>
             <div class="theme-row"><button class="theme-button" data-theme="light" type="button">Light</button><button class="theme-button" data-theme="dark" type="button">Dark</button><button class="theme-button" data-theme="auto" type="button">Auto</button></div>
           </div>
           <details class="section" data-schedule-details>
-            <summary class="section-title" style="cursor:pointer">Optional schedule</summary>
-            <div class="check-row"><span class="check-label">Pause filters during a daily window</span><input class="switch" type="checkbox" data-field="scheduleEnabled"></div>
+            <summary class="section-title" style="cursor:pointer">Recreation time</summary>
+            <div class="check-row"><span class="check-label">Pause filters during recreation time</span><input class="switch" type="checkbox" data-field="scheduleEnabled"></div>
             <div class="schedule" data-schedule>
               <div class="time-row"><input type="time" data-field="scheduleStart" aria-label="Schedule start"><span>to</span><input type="time" data-field="scheduleEnd" aria-label="Schedule end"></div>
             </div>
@@ -346,7 +359,7 @@
           <div class="actions"><button class="save" type="button">Save changes</button><button class="cancel" type="button" hidden>Cancel</button></div>
           <div class="note" aria-live="polite"></div>
         </div>
-        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.0</span></footer>
+        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.2</span></footer>
       </section>`;
     shadow.querySelector('.launcher').addEventListener('click', () => openPanel());
     trigger = shadow.querySelector('.launcher');
@@ -359,6 +372,8 @@
       saveSettings();
       applyTheme();
     }));
+    const distractionToggle = shadow.querySelector('[data-field="distractionMode"]');
+    distractionToggle.addEventListener('change', () => shadow.querySelector('[data-distraction-checklist]').classList.toggle('visible', distractionToggle.checked));
     const scheduleToggle = shadow.querySelector('[data-field="scheduleEnabled"]');
     scheduleToggle.addEventListener('change', () => shadow.querySelector('[data-schedule]').classList.toggle('visible', scheduleToggle.checked));
     shadow.querySelector('.save').addEventListener('click', saveFromUI);
@@ -370,6 +385,7 @@
     });
     shadow.querySelectorAll('[data-field]').forEach((field) => field.addEventListener('input', () => {
       if (field.dataset.field === 'scheduleEnabled') shadow.querySelector('[data-schedule]').classList.toggle('visible', field.checked);
+      if (field.dataset.field === 'distractionMode') shadow.querySelector('[data-distraction-checklist]').classList.toggle('visible', field.checked);
     }));
     (document.body || document.documentElement).append(host);
     fillUI();
@@ -387,6 +403,7 @@
     const list = (name) => parseList(field(name).value.split(/[\n,]/));
     return normalize({
       keywords: list('block'), includeKeywords: list('include'), wholeWord: field('whole').checked,
+      distractionMode: field('distractionMode').checked,
       focus: {
         shorts: field('shorts').checked,
         recommendations: field('recommendations').checked,
@@ -411,12 +428,26 @@
     set('block', settings.keywords.join('\n'));
     set('include', settings.includeKeywords.join('\n'));
     check('whole', settings.wholeWord);
+    check('distractionMode', settings.distractionMode);
+    root.querySelector('[data-distraction-checklist]').classList.toggle('visible', settings.distractionMode);
     for (const key of ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay']) check(key, settings.focus[key]);
     check('scheduleEnabled', settings.recreation.enabled);
     set('scheduleStart', settings.recreation.start);
     set('scheduleEnd', settings.recreation.end);
     root.querySelector('[data-schedule]').classList.toggle('visible', settings.recreation.enabled);
     root.querySelectorAll('[data-theme]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.theme === settings.theme)));
+  }
+
+  function updateStatus() {
+    if (!status || !host) return;
+    const recreation = isRecreationTime();
+    const distractionsOn = settings.distractionMode && Object.values(settings.focus).some(Boolean);
+    const active = !recreation && (settings.keywords.length > 0 || settings.includeKeywords.length > 0 || distractionsOn);
+    status.textContent = recreation ? 'Recreation time — filters paused' : (active ? 'Filters active' : 'Filters off');
+    const dot = host.shadowRoot.querySelector('[data-status-dot]');
+    const launcherDot = host.shadowRoot.querySelector('.launcher-dot');
+    if (dot) dot.classList.toggle('active', active);
+    if (launcherDot) launcherDot.classList.toggle('active', active);
   }
 
   function clearPending() {

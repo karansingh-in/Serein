@@ -44,6 +44,8 @@ function isLoosening(oldSettings, nextSettings) {
   if (oldAllow.size) for (const term of newAllow) if (!oldAllow.has(term)) return true;
   if (oldValue.wholeWord !== false && next.wholeWord === false && oldAllow.size) return true;
 
+  if (oldValue.distractionMode !== false && next.distractionMode === false) return true;
+
   const oldFocus = oldValue.focus || {};
   const newFocus = next.focus || {};
   for (const key of ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay']) {

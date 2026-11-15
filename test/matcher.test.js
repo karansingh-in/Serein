@@ -31,4 +31,5 @@ test('loosening changes wait, restrictive changes apply immediately', () => {
   assert.equal(isLoosening({ includeKeywords: ['java'] }, { includeKeywords: ['java', 'python'] }), true);
   assert.equal(isLoosening({ includeKeywords: ['java', 'python'] }, { includeKeywords: ['java'] }), false);
   assert.equal(isLoosening({ focus: { shorts: true } }, { focus: { shorts: false } }), true);
+  assert.equal(isLoosening({ distractionMode: true }, { distractionMode: false }), true);
 });

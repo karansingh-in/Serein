@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Serein",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "A lightweight, local-only YouTube cleaner for filtering videos and reducing distractions.",
   "permissions": [
     "storage"
