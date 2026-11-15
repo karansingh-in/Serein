@@ -6,6 +6,7 @@
 
   const STORAGE_KEY = 'ytkb_settings'; // Keep the existing key so upgrades retain user settings.
   const HIDDEN_ATTR = 'data-serein-hidden';
+  const BLOCKING_FOCUS = ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay']; // layout options are not filters
   const BRAND_URL = 'https://github.com/karansingh-in/Serein';
   const CARD_SELECTORS = [
     'ytd-rich-item-renderer', 'ytd-video-renderer', 'ytd-compact-video-renderer',
@@ -16,7 +17,7 @@
     includeKeywords: [],
     wholeWord: true,
     distractionMode: true,
-    focus: { shorts: true, recommendations: true, endScreens: false, comments: false, autoplay: false },
+    focus: { shorts: true, recommendations: true, endScreens: false, comments: false, autoplay: false, theater: true, ambient: true },
     recreation: { enabled: false, start: '18:00', end: '20:00' },
     theme: 'light'
   };
@@ -59,7 +60,10 @@
       recommendations: legacyFocus.recommendations !== false && legacyFocus.rabbit !== false,
       endScreens: legacyFocus.endScreens === true || (!!s.distractionMode && legacyDistractions.endScreenRecommendations === true),
       comments: legacyFocus.comments === true || (!!s.distractionMode && legacyDistractions.comments === true),
-      autoplay: legacyFocus.autoplay === true || legacyPlayback.disableAutoplay === true
+      autoplay: legacyFocus.autoplay === true || legacyPlayback.disableAutoplay === true,
+      // Cosmetic layout options, on unless switched off.
+      theater: legacyFocus.theater !== false,
+      ambient: legacyFocus.ambient !== false
     };
     // Migrate channel lists into the two title/channel keyword lists.
     const blocked = parseList([...(Array.isArray(s.keywords) ? s.keywords : []), ...(Array.isArray(s.blockedChannels) ? s.blockedChannels : [])]);
@@ -119,18 +123,22 @@
     scheduleScan();
     if (settings.recreation.enabled && !scheduleClock) scheduleClock = setInterval(scheduleScan, 60000);
     if (!settings.recreation.enabled && scheduleClock) { clearInterval(scheduleClock); scheduleClock = null; }
-    document.documentElement.toggleAttribute('data-serein-distractions', settings.distractionMode);
+    // The cleanup CSS keys off [data-serein-distractions="true"], so the attribute must
+    // hold the literal string "true". toggleAttribute() would write an empty value and
+    // the whole distraction-mode stylesheet would never match.
+    document.documentElement.setAttribute('data-serein-distractions', settings.distractionMode ? 'true' : 'false');
     installYouTubeCleanup();
     installSereinBrand();
     applyTheme();
   }
 
   function matchesCard(card) {
-    const titleNode = card.querySelector('#video-title, a#video-title-link, yt-formatted-string#video-title, h3 a[title]');
+    const titleNode = card.querySelector('a.ytLockupMetadataViewModelTitle, #video-title, a#video-title-link, yt-formatted-string#video-title, h3 a[title]');
     const title = titleNode ? (titleNode.getAttribute('title') || titleNode.textContent || '').trim() : '';
-    const channelNode = card.querySelector('ytd-channel-name a, #channel-name a, .ytd-channel-name a, a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]');
+    const channelNode = card.querySelector('yt-content-metadata-view-model a, ytd-channel-name a, #channel-name a, .ytd-channel-name a, a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]');
     const channel = channelNode ? (channelNode.getAttribute('title') || channelNode.textContent || '').trim() : '';
-    if (!title && !channel) return false;
+    // An unreadable card is not a match; keep it visible instead of hiding it.
+    if (!title && !channel) return true;
     const searchable = title + '\n' + channel;
     if (blockMatcher(searchable)) return false;
     if (settings.includeKeywords.length && !SereinMatcher.matchesIncluded(title, channel, includeMatcher)) return false;
@@ -178,6 +186,10 @@
       }
       if (settings.distractionMode && settings.focus.recommendations) {
         for (const element of document.querySelectorAll('ytd-watch-next-secondary-results-renderer')) desired.add(element);
+        // The right-hand column keeps its width even when its contents are gone,
+        // leaving an empty strip. Collapse it so the video column can use the space.
+        const secondary = document.querySelector('#secondary');
+        if (secondary) desired.add(secondary);
       }
       if (settings.distractionMode && settings.focus.endScreens) {
         for (const element of document.querySelectorAll('.ytp-endscreen-content, .ytp-ce-element, .ytp-ce-covering-overlay')) desired.add(element);
@@ -201,7 +213,34 @@
     return start < end ? current >= start && current < end : current >= start || current < end;
   }
 
+  // Switch a watch page into theater mode once per video. Doing it once (not on every scan) means
+  // leaving theater mode by hand is respected instead of being undone a moment later.
+  let theaterHandledFor = null;
+  function ensureTheaterMode() {
+    const id = new URLSearchParams(location.search).get('v');
+    if (!id || theaterHandledFor === id) return;
+    const flexy = document.querySelector('ytd-watch-flexy');
+    if (!flexy || flexy.hasAttribute('fullscreen')) return;
+    if (flexy.hasAttribute('theater')) { theaterHandledFor = id; return; }
+    const button = document.querySelector('ytd-watch-flexy .ytp-size-button');
+    if (!button || button.disabled || getComputedStyle(button).display === 'none') return; // player not ready yet
+    theaterHandledFor = id;
+    button.click();
+  }
+
   function scan() {
+    // The chrome sweep is expensive, so it runs from here (debounced) rather than on
+    // every mutation batch.
+    installYouTubeCleanup();
+    placeTrigger();
+    // Everything below pauses during recreation time, when YouTube should look normal.
+    const calm = settings.distractionMode && !isRecreationTime();
+    // The watch page may reclaim the empty right column only while recommendations are really hidden.
+    const wide = calm && settings.focus.recommendations;
+    document.documentElement.setAttribute('data-serein-wide', wide ? 'true' : 'false');
+    document.documentElement.setAttribute('data-serein-no-ambient', calm && settings.focus.ambient ? 'true' : 'false');
+    if (location.pathname !== '/watch') theaterHandledFor = null;
+    else if (calm && settings.focus.theater) ensureTheaterMode();
     const redirect = settings.distractionMode && settings.focus.shorts && SereinMatcher.shortsRedirectTarget(location.pathname, location.origin);
     if (redirect) { location.replace(redirect); return; }
     const desired = collectHidden();
@@ -326,7 +365,7 @@
       <section class="panel" role="dialog" aria-label="Serein filters" hidden>
         <header class="header">
           <div class="brand-row">
-            <div class="brand-lockup"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.5 19C6.8 12.4 11.2 7.1 17.2 5.1c4.8-1.6 9.1-.7 11.7 1.1-.5 6.2-2.7 11.2-6.6 15.1-4.1 4.1-9.2 6.1-13 4.8C6 25 4.5 22.5 5.5 19Z" fill="#E62117"/><path d="M6.2 23.5c3.8-3 7.4-6.3 10.7-9.7 2.4-2.4 4.7-4.6 7.3-6.3" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 23.5 3.6 29" fill="none" stroke="#E62117" stroke-width="1.9" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
+            <div class="brand-lockup"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M4.25 19.75 C6.25 14.25 9.5 9 14.5 6.5 C19.25 4 24.25 5.5 27.75 7.75 C26.25 13 23.5 18.25 19.25 22 C15.25 25.5 10.5 26.75 7.25 24.5 C4.75 22.75 3.5 21.5 4.25 19.75Z" fill="#E62117"/><path d="M5 22.75 C8.5 20 11.25 17.25 14 14.5 C17.75 10.75 21.75 8.25 26.25 7" fill="none" stroke="#fff" stroke-width="0.85" stroke-linecap="round"/><path d="M5 22.75 C3.75 25.25 2.75 27.75 1.75 30.5" fill="none" stroke="#E62117" stroke-width="1.05" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
             <div class="status"><span class="dot" data-status-dot></span><span data-status>Filters active</span></div>
           </div>
           <div class="tagline">Keep what matters. Remove the noise.</div>
@@ -349,6 +388,8 @@
             <div class="check-row"><span class="check-label">Hide end-screen suggestions</span><input class="switch" type="checkbox" data-field="endScreens"></div>
             <div class="check-row"><span class="check-label">Hide comments</span><input class="switch" type="checkbox" data-field="comments"></div>
             <div class="check-row"><span class="check-label">Disable autoplay</span><input class="switch" type="checkbox" data-field="autoplay"></div>
+            <div class="check-row"><span class="check-label">Open videos in theater mode</span><input class="switch" type="checkbox" data-field="theater"></div>
+            <div class="check-row"><span class="check-label">Turn off ambient glow</span><input class="switch" type="checkbox" data-field="ambient"></div>
             </div>
           </div>
           <div class="section">
@@ -365,7 +406,7 @@
           <div class="actions"><button class="save" type="button">Save changes</button><button class="cancel" type="button" hidden>Cancel</button></div>
           <div class="note" aria-live="polite"></div>
         </div>
-        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.6</span></footer>
+        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.14</span></footer>
       </section>`;
     shadow.querySelector('.launcher').addEventListener('click', () => openPanel());
     trigger = shadow.querySelector('.launcher');
@@ -392,6 +433,7 @@
       if (field.dataset.field === 'scheduleEnabled') shadow.querySelector('[data-schedule]').classList.toggle('visible', field.checked);
       if (field.dataset.field === 'distractionMode') shadow.querySelector('[data-distraction-checklist]').classList.toggle('visible', field.checked);
     }));
+    host.style.display = 'none';
     (document.body || document.documentElement).append(host);
     installYouTubeCleanup();
     installSereinBrand();
@@ -416,7 +458,9 @@
         recommendations: field('recommendations').checked,
         endScreens: field('endScreens').checked,
         comments: field('comments').checked,
-        autoplay: field('autoplay').checked
+        autoplay: field('autoplay').checked,
+        theater: field('theater').checked,
+        ambient: field('ambient').checked
       },
       recreation: {
         enabled: field('scheduleEnabled').checked,
@@ -437,7 +481,7 @@
     check('whole', settings.wholeWord);
     check('distractionMode', settings.distractionMode);
     root.querySelector('[data-distraction-checklist]').classList.toggle('visible', settings.distractionMode);
-    for (const key of ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay']) check(key, settings.focus[key]);
+    for (const key of ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay', 'theater', 'ambient']) check(key, settings.focus[key]);
     check('scheduleEnabled', settings.recreation.enabled);
     set('scheduleStart', settings.recreation.start);
     set('scheduleEnd', settings.recreation.end);
@@ -448,7 +492,7 @@
   function updateStatus() {
     if (!status || !host) return;
     const recreation = isRecreationTime();
-    const distractionsOn = settings.distractionMode && Object.values(settings.focus).some(Boolean);
+    const distractionsOn = settings.distractionMode && BLOCKING_FOCUS.some((key) => settings.focus[key]);
     const active = !recreation && (settings.keywords.length > 0 || settings.includeKeywords.length > 0 || distractionsOn);
     status.textContent = recreation ? 'Recreation time — filters paused' : (active ? 'Filters active' : 'Filters off');
     const dot = host.shadowRoot.querySelector('[data-status-dot]');
@@ -529,7 +573,7 @@
       try { scope.querySelectorAll(selector).forEach((element) => desired.add(element)); } catch (_) { /* YouTube DOM varies */ }
     };
 
-    // The original You entry is moved to the masthead by ensureHeaderActions().
+    // Keep one consistent You shortcut in the masthead; hide the duplicate guide entry.
     for (const entry of document.querySelectorAll('ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer')) {
       const anchor = entry.querySelector('a[href]');
       const href = anchor ? (anchor.getAttribute('href') || '') : '';
@@ -539,14 +583,22 @@
 
     if (!settings.distractionMode) return desired;
 
-    // Hide the full guide column so the home feed can occupy its width.
-    add('ytd-guide-renderer, ytd-mini-guide-renderer, ytd-app #guide-content, ytd-app #guide-wrapper');
+    // Remove the complete desktop guide/drawer, including its reserved layout column.
+    add('tp-yt-app-drawer#guide, ytd-guide-renderer, ytd-mini-guide-renderer, #guide-wrapper, #guide-content, ytd-app #guide');
     add('ytd-masthead #guide-button, #masthead #guide-button');
 
-    // Hide only the individual right-side controls; never hide the entire #end
-    // container because Serein and the relocated You shortcut live there.
-    add('ytd-masthead #end #buttons, ytd-notification-topbar-button-renderer, ytd-topbar-menu-button-renderer[button-renderer="create"], ytd-masthead #avatar-btn, ytd-masthead #buttons ytd-button-renderer, ytd-masthead #buttons yt-button-shape');
-    add('ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype="home"] #chips, ytd-rich-grid-renderer #chips, yt-chip-cloud-renderer, ytd-chip-cloud-renderer');
+    // Hide the original right-side action cluster. Serein's control is mounted as a
+    // sibling of this cluster, so it remains visible.
+    add('ytd-masthead #end #buttons, ytd-masthead #avatar-btn, ytd-notification-topbar-button-renderer');
+    add('ytd-masthead ytd-topbar-menu-button-renderer[button-renderer="create"], ytd-masthead ytd-topbar-menu-button-renderer[aria-label*="Create" i]');
+    for (const control of document.querySelectorAll('ytd-masthead ytd-topbar-menu-button-renderer, ytd-masthead ytd-button-renderer, ytd-masthead yt-button-shape')) {
+      const label = [control.getAttribute('aria-label'), control.getAttribute('title'), control.textContent]
+        .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+      if (/^(create|notifications?|account|profile)(\b|$)/i.test(label)) desired.add(control);
+    }
+
+    // Remove the topic-chip row AND its wrapper; hiding only the chips leaves an empty strip.
+    add('ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype="home"] #chips-wrapper, ytd-browse[page-subtype="home"] #chips, ytd-rich-grid-renderer #chips, yt-chip-cloud-renderer, ytd-chip-cloud-renderer, ytd-browse[page-subtype="home"] iron-selector#chips, ytd-browse[page-subtype="home"] #chip-bar');
 
     // Join controls beside Subscribe.
     for (const anchor of document.querySelectorAll('a[href*="/join"]')) {
@@ -554,12 +606,37 @@
       desired.add(button);
     }
 
-    // Gemini controls vary by YouTube experiment and locale.
-    for (const element of document.querySelectorAll('[aria-label*="Gemini" i], [title*="Gemini" i], button, yt-button-shape, ytd-button-renderer')) {
+    // Gemini and the newer AI/sparkle button. The sparkle control has no text, so it is
+    // matched by its icon name.
+    for (const element of document.querySelectorAll('[aria-label*="Gemini" i], [title*="Gemini" i], button, yt-button-shape, ytd-button-renderer, yt-icon[icon-name*="sparkles" i], yt-icon[id*="sparkles" i]')) {
       const label = [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent]
         .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-      if (!/^(ask\s+)?gemini$/i.test(label)) continue;
-      desired.add(element.closest('yt-button-shape, ytd-button-renderer') || element);
+      const isSparkle = element.tagName === 'YT-ICON' && /sparkle/i.test(element.getAttribute('icon-name') || element.id || '');
+      if (!isSparkle && !/^(ask\s+)?gemini$/i.test(label)) continue;
+      desired.add(element.closest('yt-button-shape, ytd-button-renderer, button') || element);
+    }
+
+    // The "Ask" (Gemini) button in the watch-page action row. Newer markup gives its icon no
+    // name, so match the accessible label, title or visible text instead. Scoped to the action
+    // row so an unrelated control that happens to say "Ask" elsewhere is never touched.
+    const ASK_LABEL = /^(ask|ask ai|ask gemini|ask about this video|ask a question|gemini)$/i;
+    for (const control of document.querySelectorAll('ytd-watch-metadata button, ytd-watch-metadata a, #actions button, #top-level-buttons-computed button')) {
+      const labels = [control.getAttribute('aria-label'), control.getAttribute('title'), control.textContent]
+        .map((value) => (value || '').replace(/\s+/g, ' ').trim());
+      if (!labels.some((label) => ASK_LABEL.test(label))) continue;
+      desired.add(control.closest('yt-button-view-model') || control.closest('ytd-button-renderer') || control.closest('button-view-model') || control);
+    }
+
+    // The comment sort control next to the comment count.
+    for (const sort of document.querySelectorAll('yt-sort-filter-sub-menu-renderer, #sort-menu yt-sort-filter-sub-menu-renderer')) {
+      desired.add(sort);
+    }
+
+    // Promotional and paid-content labels ("Featured", "₹0", "try for 0 rupees"). The
+    // wording is region- and account-dependent, so match the text rather than the class.
+    for (const badge of document.querySelectorAll('ytd-badge-supported-renderer, ytd-metadata-badge-renderer, yt-badge-shape, ytd-thumbnail-overlay-badge-view-model')) {
+      const text = (badge.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/featured|₹|\brupees?\b|try for\s*0/i.test(text)) desired.add(badge);
     }
     return desired;
   }
@@ -573,23 +650,78 @@
     }
     const cleanupCss = `
       [data-serein-ui-hidden] { display: none !important; }
-      html[data-serein-distractions="true"] ytd-masthead #center { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; max-width: none !important; margin: 0 22px !important; }
-      html[data-serein-distractions="true"] ytd-masthead #search, html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
-      html[data-serein-distractions="true"] ytd-app #contentContainer,
-      html[data-serein-distractions="true"] ytd-app[guide-persistent-and-visible] #page-manager,
-      html[data-serein-distractions="true"] ytd-app #page-manager { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: none !important; }
-      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #primary { margin-left: auto !important; margin-right: auto !important; }
-      /* Do not set fixed thumbnail heights: YouTube retains its native 16:9 image sizing. */
-      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #primary,
-      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
-      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer { width: 100% !important; max-width: none !important; }
-      #serein-header-actions { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: 10px; }
-      #serein-you-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 48px; height: 40px; padding: 0 9px; border-radius: 20px; color: var(--yt-spec-text-primary, currentColor); text-decoration: none; font: 500 12px Roboto, Arial, sans-serif; white-space: nowrap; }
+      /* Centre the search field in the masthead. */
+      ytd-masthead #center, #masthead #center { min-width: 0 !important; flex: 0 1 732px !important; justify-content: center !important; margin-left: 0 !important; }
+      ytd-masthead yt-searchbox, #masthead yt-searchbox { min-width: 0 !important; max-width: 640px !important; flex: 0 1 640px !important; margin-left: 0 !important; }
+      ytd-masthead #voice-search-button, #masthead #voice-search-button { flex: 0 0 auto !important; margin-left: 10px !important; }
+      #serein-you-link { display: inline-flex !important; visibility: visible !important; opacity: 1 !important; align-items: center; justify-content: center; gap: 5px; height: 40px; min-width: 58px; margin: 0 8px 0 0; padding: 0 10px; border-radius: 20px; color: #0f0f0f !important; text-decoration: none; font: 500 12px Roboto, Arial, sans-serif; white-space: nowrap; flex: 0 0 auto !important; position: relative; z-index: 2; }
+      html[dark] #serein-you-link { color: #f1f1f1 !important; }
       #serein-you-link:hover { background: var(--yt-spec-badge-chip-background, rgba(128,128,128,.18)); }
-      #serein-you-link svg { width: 21px; height: 21px; }
-      #serein-host { position: static !important; width: 40px !important; height: 40px !important; margin: 0 !important; flex: 0 0 40px !important; }
+      #serein-you-link svg { width: 21px; height: 21px; flex: 0 0 21px; }
+      #serein-header-actions { display: inline-flex !important; align-items: center; justify-content: center; gap: 2px; flex: 0 0 auto; height: 40px; margin: 0 18px 0 8px; }
+      #serein-host { display: block !important; position: static !important; width: 40px !important; height: 40px !important; margin: 0 !important; flex: 0 0 40px !important; }
       #serein-host .launcher { position: relative !important; inset: auto !important; width: 40px !important; height: 40px !important; border-radius: 50% !important; box-shadow: none !important; }
       #serein-host .panel { position: fixed !important; left: auto !important; right: 18px !important; top: 72px !important; bottom: auto !important; }
+
+      /* YouTube draws a frosted-glass backdrop behind the masthead and, on the home page, grows it
+         (.with-chipbar) to sit behind the topic chips. Serein removes the chips, so shrink the
+         backdrop back to the masthead height or an empty translucent band is left under the search bar. */
+      html[data-serein-distractions="true"] #frosted-glass,
+      html[data-serein-distractions="true"] #frosted-glass.with-chipbar { height: 56px !important; min-height: 0 !important; }
+
+      /* Remove the guide AND its spacer column. The content container must reclaim the full viewport. */
+      html[data-serein-distractions="true"] ytd-app { --ytd-guide-width: 0px !important; --ytd-mini-guide-width: 0px !important; }
+      html[data-serein-distractions="true"] ytd-app #guide-spacer,
+      html[data-serein-distractions="true"] ytd-app #guide-wrapper,
+      html[data-serein-distractions="true"] ytd-app #guide-content,
+      html[data-serein-distractions="true"] ytd-app tp-yt-app-drawer#guide,
+      html[data-serein-distractions="true"] ytd-app ytd-guide-renderer,
+      html[data-serein-distractions="true"] ytd-app ytd-mini-guide-renderer { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; }
+      html[data-serein-distractions="true"] ytd-app #contentContainer,
+      html[data-serein-distractions="true"] ytd-app #page-manager,
+      html[data-serein-distractions="true"] ytd-app #columns,
+      html[data-serein-distractions="true"] ytd-app #primary,
+      html[data-serein-distractions="true"] ytd-app[guide-persistent-and-visible] #contentContainer,
+      html[data-serein-distractions="true"] ytd-app[guide-persistent-and-visible] #page-manager { box-sizing: border-box !important; margin-left: 0 !important; padding-left: 0 !important; left: 0 !important; width: 100% !important; max-width: none !important; }
+      /* On the watch page the video column keeps a comfortable gutter instead of
+         running into the screen edge. */
+      html[data-serein-distractions="true"] ytd-app #primary { padding-left: 16px !important; padding-right: 16px !important; }
+      /* Ambient mode: the coloured glow YouTube bleeds around the player. */
+      html[data-serein-no-ambient="true"] #cinematics,
+      html[data-serein-no-ambient="true"] #cinematics-container { display: none !important; }
+      /* Watch page: with recommendations hidden the right column is empty, so let the title row,
+         description and comments use the full width instead of stopping where the column began. */
+      html[data-serein-wide="true"] ytd-watch-flexy { --ytd-watch-flexy-sidebar-width: 0px !important; --ytd-watch-flexy-sidebar-min-width: 0px !important; }
+      html[data-serein-wide="true"] ytd-watch-flexy #secondary,
+      html[data-serein-wide="true"] ytd-watch-flexy #secondary-inner { display: none !important; width: 0 !important; min-width: 0 !important; max-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+      html[data-serein-wide="true"] ytd-watch-flexy #columns,
+      html[data-serein-wide="true"] ytd-watch-flexy #primary,
+      html[data-serein-wide="true"] ytd-watch-flexy #primary-inner,
+      html[data-serein-wide="true"] ytd-watch-flexy #below,
+      html[data-serein-wide="true"] ytd-watch-flexy ytd-watch-metadata,
+      html[data-serein-wide="true"] ytd-watch-flexy ytd-comments { box-sizing: border-box !important; width: 100% !important; min-width: 0 !important; max-width: none !important; }
+      /* The home header is only the topic-chip strip on this view; collapse the whole band. */
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #header,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #chips-wrapper,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-feed-filter-chip-bar-renderer { display: none !important; height: 0 !important; min-height: 0 !important; max-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; overflow: hidden !important; }
+      /* Widen the feed into the reclaimed sidebar space. The grid and its #contents row
+         must keep YouTube's flex layout - forcing display:block collapses the row into a
+         single column of full-width cards. */
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"],
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #primary,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer { box-sizing: border-box !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding-left: 12px !important; padding-right: 12px !important; }
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer { --ytd-rich-grid-items-per-row: 3 !important; --ytd-rich-grid-posts-per-row: 3 !important; }
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-row,
+      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #contents { width: 100% !important; max-width: none !important; }
+      /* Keep YouTube's native thumbnail ratio and height calculations untouched. */
+      /* One title line keeps the grid calm; the ellipsis stays. */
+      html[data-serein-distractions="true"] a.ytLockupMetadataViewModelTitle,
+      html[data-serein-distractions="true"] yt-formatted-string#video-title,
+      html[data-serein-distractions="true"] a#video-title { -webkit-line-clamp: 1 !important; }
+      @media (max-width: 1500px) { html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer { --ytd-rich-grid-items-per-row: 3 !important; --ytd-rich-grid-posts-per-row: 3 !important; } }
+      @media (max-width: 1050px) { html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer { --ytd-rich-grid-items-per-row: 2 !important; --ytd-rich-grid-posts-per-row: 2 !important; } }
+      @media (max-width: 720px) { html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer { --ytd-rich-grid-items-per-row: 1 !important; --ytd-rich-grid-posts-per-row: 1 !important; } }
     `;
     if (style.textContent !== cleanupCss) style.textContent = cleanupCss;
 
@@ -604,31 +736,38 @@
   function ensureHeaderActions() {
     const end = document.querySelector('ytd-masthead #end, #masthead #end');
     if (!end) return;
-    let actions = document.getElementById('serein-header-actions');
-    if (!actions) {
-      actions = document.createElement('div');
-      actions.id = 'serein-header-actions';
-      const you = document.createElement('a');
+
+    // Put You immediately to the left of the Serein filter control in the right cluster.
+    let you = document.getElementById('serein-you-link');
+    if (!you) {
+      you = document.createElement('a');
       you.id = 'serein-you-link';
       you.href = '/feed/you';
       you.setAttribute('aria-label', 'You');
       you.title = 'You';
       you.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.2 20c.7-3.4 3.1-5.3 6.8-5.3s6.1 1.9 6.8 5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>You</span>';
-      actions.append(you);
+    }
+    let actions = document.getElementById('serein-header-actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.id = 'serein-header-actions';
     }
     if (actions.parentElement !== end) end.append(actions);
+    if (you.parentElement !== actions) actions.insertBefore(you, actions.firstChild);
     if (host && host.parentElement !== actions) actions.append(host);
+    you.style.setProperty('display', 'inline-flex', 'important');
+    you.style.setProperty('visibility', 'visible', 'important');
   }
 
   function installSereinBrand() {
-    const logo = document.querySelector('ytd-masthead #logo');
-    if (!logo || logo.dataset.sereinBrand === 'true') return;
-    logo.dataset.sereinBrand = 'true';
-    logo.href = '/';
+    // The clickable element is the inner <a href="/">; the wrapper element carries the
+    // same id, so it must be selected explicitly or the brand stops being a link.
+    const logo = document.querySelector('ytd-masthead #logo a[href="/"], ytd-masthead a#logo');
+    if (!logo || logo.querySelector('.serein-masthead-brand')) return;
     logo.setAttribute('aria-label', 'Serein home');
     logo.setAttribute('title', 'Serein — Home');
     logo.innerHTML = `
-      <span class="serein-masthead-brand" style="display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:40px;color:var(--yt-spec-text-primary,#f1f1f1);font-family:Inter,Arial,sans-serif;font-size:19px;font-weight:550;letter-spacing:.12em;text-transform:lowercase">
+      <span class="serein-masthead-brand" style="display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:40px;color:inherit;font-family:Inter,Arial,sans-serif;font-size:19px;font-weight:550;letter-spacing:.12em;text-transform:lowercase">
         <svg width="27" height="27" viewBox="0 0 128 128" aria-hidden="true" focusable="false">
           <path d="M17 79 C25 57 38 36 58 26 C77 16 97 22 111 31 C105 52 94 73 77 88 C61 102 42 107 29 98 C19 91 14 86 17 79Z" fill="#E62117"/>
           <path d="M20 91 C34 80 45 69 56 58 C71 43 87 33 105 28" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/>
@@ -647,11 +786,12 @@
     host.style.bottom = 'auto';
     host.style.width = '40px';
     host.style.height = '40px';
-    host.style.display = 'block';
+    host.style.display = 'none';
     host.style.margin = '0';
     host.style.zIndex = '2147483647';
     ensureHeaderActions();
-    if (!host.isConnected && document.body) document.body.append(host);
+    const inMasthead = !!host.parentElement?.closest('#serein-header-actions');
+    host.style.display = inMasthead ? 'block' : 'none';
     positionPanel();
     installSereinBrand();
   }
@@ -662,11 +802,9 @@
     scan();
     const observer = new MutationObserver(() => {
       if (!host.isConnected) { host = null; panel = null; trigger = null; buildUI(); }
-      installYouTubeCleanup();
-      placeTrigger();
       scheduleScan();
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener('yt-navigate-finish', () => { installSereinBrand(); placeTrigger(); scheduleScan(); });
     document.addEventListener('yt-page-data-updated', scheduleScan);
     const darkObserver = new MutationObserver(() => { if (settings.theme === 'auto') applyTheme(); });

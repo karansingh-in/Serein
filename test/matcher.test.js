@@ -33,3 +33,11 @@ test('loosening changes wait, restrictive changes apply immediately', () => {
   assert.equal(isLoosening({ focus: { shorts: true } }, { focus: { shorts: false } }), true);
   assert.equal(isLoosening({ distractionMode: true }, { distractionMode: false }), true);
 });
+
+test('layout options (theater, ambient glow) never trigger the loosening wait', () => {
+  const on = { focus: { shorts: true, theater: true, ambient: true } };
+  const off = { focus: { shorts: true, theater: false, ambient: false } };
+  assert.equal(isLoosening(on, off), false);
+  assert.equal(isLoosening(off, on), false);
+  assert.equal(isLoosening(on, { focus: { shorts: false, theater: true, ambient: true } }), true);
+});
