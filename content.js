@@ -28,6 +28,7 @@
   let blockMatcher = SereinMatcher.buildMatcher([], true);
   let includeMatcher = SereinMatcher.buildMatcher([], true);
   const originalStyles = new WeakMap();
+  const originalUiStyles = new WeakMap();
   let scanTimer = null;
   let scheduleClock = null;
   let host = null;
@@ -364,7 +365,7 @@
           <div class="actions"><button class="save" type="button">Save changes</button><button class="cancel" type="button" hidden>Cancel</button></div>
           <div class="note" aria-live="polite"></div>
         </div>
-        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.2</span></footer>
+        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.5</span></footer>
       </section>`;
     shadow.querySelector('.launcher').addEventListener('click', () => openPanel());
     trigger = shadow.querySelector('.launcher');
@@ -499,66 +500,93 @@
     tick();
   }
 
+  function setUiHidden(element, shouldHide) {
+    if (!element) return;
+    if (shouldHide) {
+      if (!element.hasAttribute('data-serein-ui-hidden')) {
+        originalUiStyles.set(element, {
+          display: element.style.getPropertyValue('display'),
+          priority: element.style.getPropertyPriority('display')
+        });
+      }
+      element.setAttribute('data-serein-ui-hidden', '');
+      // Inline !important is intentional: YouTube frequently applies display rules
+      // after its Polymer components are upgraded, which can beat a stylesheet rule.
+      element.style.setProperty('display', 'none', 'important');
+      return;
+    }
+    if (!element.hasAttribute('data-serein-ui-hidden')) return;
+    element.removeAttribute('data-serein-ui-hidden');
+    const previous = originalUiStyles.get(element);
+    if (previous && previous.display) element.style.setProperty('display', previous.display, previous.priority);
+    else element.style.removeProperty('display');
+    originalUiStyles.delete(element);
+  }
+
+  function collectYouTubeChromeToHide() {
+    const desired = new Set();
+    const add = (selector, scope = document) => {
+      try { scope.querySelectorAll(selector).forEach((element) => desired.add(element)); } catch (_) { /* YouTube DOM varies */ }
+    };
+    // The entire right-hand masthead cluster contains Create, notifications and
+    // the account avatar. Hide the cluster, not individual labels that change by locale.
+    add('ytd-masthead #end, #masthead #end, ytd-masthead #buttons, #masthead #buttons');
+    add('ytd-masthead #guide-button, #masthead #guide-button');
+    // Homepage topic chips (Google, Android, Gaming, Music, etc.).
+    add('ytd-feed-filter-chip-bar-renderer, ytd-browse[page-subtype="home"] #chips, ytd-rich-grid-renderer #chips, yt-chip-cloud-renderer, ytd-chip-cloud-renderer');
+    // Keep the You destination, but remove Home and Subscriptions from the guide.
+    for (const entry of document.querySelectorAll('ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer')) {
+      const anchor = entry.querySelector('a[href]');
+      const href = anchor ? (anchor.getAttribute('href') || '') : '';
+      const label = (anchor?.getAttribute('aria-label') || anchor?.textContent || entry.textContent || '').replace(/\s+/g, ' ').trim();
+      const isYou = href === '/feed/you' || href === '/you' || /^you$/i.test(label);
+      if (!isYou) desired.add(entry);
+    }
+    // Explicit fallbacks for header controls in layouts where #end is structured differently.
+    add('ytd-notification-topbar-button-renderer, ytd-topbar-menu-button-renderer[button-renderer="create"], ytd-masthead #avatar-btn');
+    for (const anchor of document.querySelectorAll('a[href*="/join"]')) {
+      const button = anchor.closest('ytd-button-renderer, yt-button-shape, #sponsor-button, tp-yt-paper-button') || anchor;
+      desired.add(button);
+    }
+    // Gemini has appeared under several labels and wrapper elements. Match only
+    // the control itself, then hide its nearest button wrapper.
+    for (const element of document.querySelectorAll('[aria-label*="Gemini" i], [title*="Gemini" i], button, yt-button-shape, ytd-button-renderer')) {
+      const label = [element.getAttribute('aria-label'), element.getAttribute('title'), element.textContent]
+        .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+      if (!/^(ask\s+)?gemini$/i.test(label)) continue;
+      desired.add(element.closest('yt-button-shape, ytd-button-renderer') || element);
+    }
+    return desired;
+  }
+
   function installYouTubeCleanup() {
     let style = document.getElementById('serein-youtube-cleanup');
-    const createStyle = !style;
-    if (createStyle) {
+    if (!style) {
       style = document.createElement('style');
       style.id = 'serein-youtube-cleanup';
       (document.head || document.documentElement).append(style);
+      style.textContent = `
+        [data-serein-ui-hidden] { display: none !important; }
+        html[data-serein-distractions="true"] ytd-masthead #center {
+          flex: 1 1 auto !important;
+          width: auto !important;
+          max-width: min(1100px, calc(100vw - 190px)) !important;
+          margin-inline: auto !important;
+        }
+        html[data-serein-distractions="true"] ytd-masthead #search,
+        html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
+      `;
     }
-    if (createStyle) style.textContent = `
-      [data-serein-ui-hidden] { display: none !important; }
-      /* Serein distraction mode: retain only the You page entry, search, and voice search. */
-      html[data-serein-distractions="true"] ytd-masthead #guide-button,
-      html[data-serein-distractions="true"] ytd-masthead #end,
-      html[data-serein-distractions="true"] ytd-feed-filter-chip-bar-renderer,
-      html[data-serein-distractions="true"] ytd-browse[page-subtype="home"] #chips,
-      html[data-serein-distractions="true"] yt-chip-cloud-renderer,
-      html[data-serein-distractions="true"] ytd-guide-entry-renderer:has(a[href="/"]),
-      html[data-serein-distractions="true"] ytd-guide-entry-renderer:has(a[href^="/feed/subscriptions"]),
-      html[data-serein-distractions="true"] ytd-mini-guide-entry-renderer:has(a[href="/"]),
-      html[data-serein-distractions="true"] ytd-mini-guide-entry-renderer:has(a[href^="/feed/subscriptions"]),
-      /* The /feed/you guide entry is deliberately not hidden. */
-      html[data-serein-distractions="true"] ytd-topbar-menu-button-renderer:has(button[aria-label^="Create"]),
-      html[data-serein-distractions="true"] ytd-notification-topbar-button-renderer,
-      html[data-serein-distractions="true"] ytd-masthead #avatar-btn,
-      html[data-serein-distractions="true"] ytd-masthead #buttons ytd-topbar-menu-button-renderer,
-      html[data-serein-distractions="true"] ytd-masthead #buttons ytd-button-renderer { display: none !important; }
 
-      /* Keep the search field and microphone usable in the freed header space. */
-      html[data-serein-distractions="true"] ytd-masthead #center {
-        flex: 1 1 auto !important;
-        max-width: min(900px, calc(100vw - 250px)) !important;
-        margin-inline: auto !important;
-      }
-      html[data-serein-distractions="true"] ytd-masthead #search,
-      html[data-serein-distractions="true"] ytd-masthead #voice-search-button { display: flex !important; }
-
-      /* Remove Join beside Subscribe and Gemini/Ask Gemini on watch pages. */
-      html[data-serein-distractions="true"] #sponsor-button,
-      html[data-serein-distractions="true"] ytd-video-owner-renderer #sponsor-button,
-      html[data-serein-distractions="true"] ytd-button-renderer:has(a[href*="/join"]),
-      html[data-serein-distractions="true"] yt-button-shape:has(a[href*="/join"]),
-      html[data-serein-distractions="true"] button[aria-label*="Gemini" i],
-      html[data-serein-distractions="true"] ytd-button-renderer:has(button[aria-label*="Gemini" i]),
-      html[data-serein-distractions="true"] yt-button-shape:has(button[aria-label*="Gemini" i]),
-      html[data-serein-distractions="true"] button[title*="Gemini" i] { display: none !important; }
-    `;
-    const hiddenAttr = 'data-serein-ui-hidden';
-    if (settings.distractionMode) {
-      for (const node of document.querySelectorAll('button, a, yt-button-shape, ytd-button-renderer')) {
-        const label = [node.getAttribute('aria-label'), node.getAttribute('title'), node.textContent]
-          .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-        if (!/^(join|ask gemini|gemini)$/i.test(label)) continue;
-        const target = node.closest('ytd-button-renderer, yt-button-shape') || node;
-        target.setAttribute(hiddenAttr, '');
-      }
-    } else {
-      for (const node of document.querySelectorAll('[' + hiddenAttr + ']')) {
-        node.removeAttribute(hiddenAttr);
-      }
+    if (!settings.distractionMode) {
+      document.querySelectorAll('[data-serein-ui-hidden]').forEach((element) => setUiHidden(element, false));
+      return;
     }
+    const desired = collectYouTubeChromeToHide();
+    document.querySelectorAll('[data-serein-ui-hidden]').forEach((element) => {
+      if (!desired.has(element)) setUiHidden(element, false);
+    });
+    desired.forEach((element) => setUiHidden(element, true));
   }
 
   function installSereinBrand() {
@@ -571,9 +599,9 @@
     logo.innerHTML = `
       <span class="serein-masthead-brand" style="display:inline-flex;align-items:center;gap:9px;white-space:nowrap;height:40px;color:var(--yt-spec-text-primary,#f1f1f1);font-family:Inter,Arial,sans-serif;font-size:19px;font-weight:550;letter-spacing:.12em;text-transform:lowercase">
         <svg width="27" height="27" viewBox="0 0 128 128" aria-hidden="true" focusable="false">
-          <path d="M18 75 C25 47 43 27 69 21 C83 17 98 19 111 25 C108 49 98 72 80 89 C66 102 48 110 34 105 C21 100 14 89 18 75Z" fill="#E62117"/>
-          <path d="M23 91 C40 78 56 63 72 47 C83 36 94 29 105 24" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
-          <path d="M23 91 C19 98 15 105 11 113" fill="none" stroke="#E62117" stroke-width="6" stroke-linecap="round"/>
+          <path d="M17 79 C25 57 38 36 58 26 C77 16 97 22 111 31 C105 52 94 73 77 88 C61 102 42 107 29 98 C19 91 14 86 17 79Z" fill="#E62117"/>
+          <path d="M20 91 C34 80 45 69 56 58 C71 43 87 33 105 28" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/>
+          <path d="M20 91 C15 101 11 111 7 122" fill="none" stroke="#E62117" stroke-width="4.2" stroke-linecap="round"/>
         </svg>
         <span>s e r e i n</span>
       </span>`;

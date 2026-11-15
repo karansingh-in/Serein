@@ -1,6 +1,6 @@
 {
   "name": "serein-youtube-cleaner",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "private": true,
   "description": "A lightweight, local-only YouTube cleaner.",
   "scripts": {

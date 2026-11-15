@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 test('release manifest preserves Firefox identity and storage-only permission', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
   assert.equal(manifest.name, 'Serein');
-  assert.equal(manifest.version, '3.0.4');
+  assert.equal(manifest.version, '3.0.5');
   assert.equal(manifest.browser_specific_settings.gecko.id, 'ytkb@karansingh-in');
   assert.deepEqual(manifest.permissions, ['storage']);
   assert.deepEqual(manifest.content_scripts[0].js, ['matcher.js', 'content.js']);
@@ -22,15 +22,20 @@ test('distraction mode keeps the bottom-left launcher and Serein brand', () => {
   assert.match(source, /installSereinBrand/);
   assert.match(source, /Serein home/);
   assert.match(source, /s e r e i n/);
-  assert.match(source, /M18 75 C25 47 43 27 69 21/);
+  assert.match(source, /M17 79 C25 57 38 36 58 26/);
+  assert.match(source, /stroke-width=\"4.2\"/);
 });
 
 test('distraction mode hides requested YouTube chrome and preserves You/search/mic', () => {
   const source = fs.readFileSync(path.join(root, 'content.js'), 'utf8');
   assert.match(source, /data-serein-distractions/);
   assert.match(source, /ytd-feed-filter-chip-bar-renderer/);
-  assert.match(source, /\/feed\/subscriptions/);
+  assert.match(source, /ytd-guide-entry-renderer/);
   assert.match(source, /ytd-masthead #end/);
+  assert.match(source, /ytd-masthead #buttons/);
+  assert.match(source, /setUiHidden/);
+  assert.match(source, /element\.style\.setProperty\('display', 'none', 'important'\)/);
+  assert.match(source, /isYou = href === '\/feed\/you'/);
   assert.match(source, /#voice-search-button/);
   assert.match(source, /#search/);
   assert.match(source, /\/feed\/you/);
