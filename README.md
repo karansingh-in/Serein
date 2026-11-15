@@ -25,11 +25,12 @@ Pause Serein's filters during a configurable daily time window. The window suppo
 ### Appearance
 - Light, dark, and automatic themes.
 - Light mode is the default for new installations.
-- Blue interface accents; green/red status indicator for active/off filtering.
+- Blue interface accents; green/red status indicator for active/off filtering. The status sits at the top-right of the panel header. The YouTube Create action is hidden while notifications remain available.
 
 ## Privacy and permissions
 - Settings are stored locally using Firefox extension storage.
 - No accounts, cloud sync, analytics, telemetry, or external services.
+- Hides YouTube’s Create action from the top bar.
 - The only declared permission is `storage`.
 
 ## Install in Firefox

@@ -270,16 +270,16 @@
         .panel { position: fixed; left: 16px; bottom: 76px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--window-border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
         .panel[hidden] { display: none; }
         .header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
-        .brand-row { display: flex; align-items: center; gap: 10px; }
+        .brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .brand-mark { width: 23px; height: 23px; display: block; flex: 0 0 23px; }
         .brand { font-size: 17px; font-weight: 550; letter-spacing: .04em; text-transform: lowercase; }
         .tagline { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: .01em; }
-        .status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+        .status { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
         .dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
         .dot.active { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.13); }
         .launcher-dot { background: #dc2626; }
         .launcher-dot.active { background: #16a34a; }
-        .close { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; }
         .body { padding: 18px 20px 20px; }
         .section-title { margin: 0 0 10px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
         .field-label { display: block; margin: 14px 0 7px; font-size: 13px; font-weight: 600; }
@@ -321,9 +321,11 @@
       </button>
       <section class="panel" role="dialog" aria-label="Serein filters" hidden>
         <header class="header">
-          <div class="brand-row"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.8 18.9C8 9.6 16 4.6 26.3 5c-.3 9.7-5.2 18-15.5 21-4.1 1.2-7-2.8-5-7.1Z" fill="#E62117"/><path d="M8 24.3c4.2-5.5 9.2-10.2 15.9-15.2" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
+          <div class="brand-row">
+            <div class="brand-lockup"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#fff"/><path d="M5.8 18.9C8 9.6 16 4.6 26.3 5c-.3 9.7-5.2 18-15.5 21-4.1 1.2-7-2.8-5-7.1Z" fill="#E62117"/><path d="M8 24.3c4.2-5.5 9.2-10.2 15.9-15.2" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M8 24.3 4.8 27.5" fill="none" stroke="#E62117" stroke-width="1.6" stroke-linecap="round"/></svg><div class="brand">s e r e i n</div></div>
+            <div class="status"><span class="dot" data-status-dot></span><span data-status>Filters active</span></div>
+          </div>
           <div class="tagline">Keep what matters. Remove the noise.</div>
-          <div class="status"><span class="dot" data-status-dot></span><span data-status>Filters active</span><button class="close" type="button" aria-label="Close settings">×</button></div>
         </header>
         <div class="body">
           <p class="section-title">Content filtering</p>
@@ -366,7 +368,6 @@
     panel = shadow.querySelector('.panel');
     status = shadow.querySelector('[data-status]');
     note = shadow.querySelector('.note');
-    shadow.querySelector('.close').addEventListener('click', () => openPanel(false));
     shadow.querySelectorAll('[data-theme]').forEach((button) => button.addEventListener('click', () => {
       settings.theme = button.dataset.theme;
       saveSettings();
@@ -388,6 +389,7 @@
       if (field.dataset.field === 'distractionMode') shadow.querySelector('[data-distraction-checklist]').classList.toggle('visible', field.checked);
     }));
     (document.body || document.documentElement).append(host);
+    installYouTubeCleanup();
     fillUI();
     applyTheme();
     placeTrigger();
@@ -493,6 +495,25 @@
     tick();
   }
 
+  function installYouTubeCleanup() {
+    if (document.getElementById('serein-youtube-cleanup')) return;
+    const style = document.createElement('style');
+    style.id = 'serein-youtube-cleanup';
+    style.textContent = `
+      /* Remove YouTube's Create action without affecting the notification control. */
+      ytd-topbar-menu-button-renderer:has(button[aria-label^="Create"]),
+      ytd-topbar-menu-button-renderer:has(a[aria-label^="Create"]),
+      ytd-button-renderer:has(button[aria-label^="Create"]),
+      yt-button-shape:has(button[aria-label^="Create"]),
+      #buttons button[aria-label^="Create"],
+      #buttons a[aria-label^="Create"],
+      button[aria-label^="Create"],
+      a[aria-label^="Create"],
+      ytd-topbar-menu-button-renderer:has([title^="Create"]) { display: none !important; }
+    `;
+    (document.head || document.documentElement).append(style);
+  }
+
   function placeTrigger() {
     if (!host) return;
     // Serein intentionally lives in the bottom-left corner, away from YouTube's search/header controls.
@@ -514,6 +535,7 @@
     scan();
     const observer = new MutationObserver(() => {
       if (!host.isConnected) { host = null; panel = null; trigger = null; buildUI(); }
+      installYouTubeCleanup();
       placeTrigger();
       scheduleScan();
     });
