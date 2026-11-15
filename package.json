@@ -1,10 +1,10 @@
 {
   "name": "serein-youtube-cleaner",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Local-only YouTube cleaner and focus extension",
+  "description": "A lightweight, local-only YouTube cleaner.",
   "scripts": {
-    "check": "node --check matcher.js && node --check distractions.js && node --check playback.js && node --check time-awareness.js && node --check presets.js && node --check content.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))\"",
+    "check": "node --check matcher.js && node --check content.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json', 'utf8'))\"",
     "test": "node --test test/*.test.js"
   }
 }

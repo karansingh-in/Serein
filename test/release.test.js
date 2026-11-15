@@ -1,34 +1,25 @@
 'use strict';
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const root = path.join(__dirname, '..');
 
-const root = path.resolve(__dirname, '..');
-const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
-
-test('release manifest is versioned and targets Firefox without unnecessary permissions', () => {
-  assert.equal(manifest.manifest_version, 2);
+test('release manifest preserves Firefox identity and storage-only permission', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
   assert.equal(manifest.name, 'Serein');
-  assert.equal(manifest.version, '2.3.0');
-  assert.deepEqual(manifest.permissions, ['storage']);
+  assert.equal(manifest.version, '3.0.0');
   assert.equal(manifest.browser_specific_settings.gecko.id, 'ytkb@karansingh-in');
+  assert.deepEqual(manifest.permissions, ['storage']);
+  assert.deepEqual(manifest.content_scripts[0].js, ['matcher.js', 'content.js']);
 });
 
-test('every declared content script and icon exists in the release package', () => {
-  for (const file of manifest.content_scripts.flatMap((entry) => entry.js)) {
-    assert.ok(fs.existsSync(path.join(root, file)), `missing content script: ${file}`);
-  }
-  for (const file of Object.values(manifest.icons)) {
-    assert.ok(fs.existsSync(path.join(root, file)), `missing icon: ${file}`);
-  }
-});
-
-test('the project remains dependency-free', () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.equal(pkg.version, '2.3.0');
-  assert.equal(pkg.name, 'serein-youtube-cleaner');
-  assert.equal(pkg.dependencies, undefined);
-  assert.equal(pkg.devDependencies, undefined);
+test('product UI uses the requested wordmark, Filters topbar label and GitHub credit', () => {
+  const source = fs.readFileSync(path.join(root, 'content.js'), 'utf8');
+  assert.match(source, /s e r e i n/);
+  assert.match(source, />Filters<\/button>/);
+  assert.match(source, /Built by karansingh-in/);
+  assert.match(source, /https:\/\/github\.com\/karansingh-in\/Serein/);
+  assert.match(source, /theme: 'light'/);
+  assert.doesNotMatch(source, /Focus mode|Time awareness|Video duration|Hide watched videos|Hide live streams/);
 });

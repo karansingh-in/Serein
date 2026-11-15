@@ -1,39 +1,24 @@
 {
   "manifest_version": 2,
   "name": "Serein",
-  "version": "2.3.0",
-  "description": "A lightweight, local-only YouTube cleaner with keyword and channel filters with page scoping, distraction controls, playback preferences, viewing-time awareness, Shorts handling, and scheduling.",
-  "permissions": [
-    "storage"
-  ],
+  "version": "3.0.0",
+  "description": "A lightweight, local-only YouTube cleaner for filtering videos and reducing distractions.",
+  "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": [
-        "*://*.youtube.com/*"
-      ],
-      "js": [
-        "matcher.js",
-        "distractions.js",
-        "playback.js",
-        "time-awareness.js",
-        "presets.js",
-        "content.js"
-      ],
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["matcher.js", "content.js"],
       "run_at": "document_idle"
     }
   ],
   "browser_specific_settings": {
     "gecko": {
       "id": "ytkb@karansingh-in",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
+      "data_collection_permissions": { "required": ["none"] }
     }
   },
   "author": "karansingh-in",
-  "homepage_url": "https://github.com/karansingh-in",
+  "homepage_url": "https://github.com/karansingh-in/Serein",
   "icons": {
     "48": "icons/icon-48.png",
     "96": "icons/icon-96.png",

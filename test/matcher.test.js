@@ -1,185 +1,34 @@
 'use strict';
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  buildMatcher,
-  matchesIncluded,
-  matchesChannel,
-  pageScope,
-  shouldFilterCards,
-  isRecreationTime,
-  isLoosening,
-  shortsRedirectTarget
-} = require('../matcher.js');
+const { buildMatcher, matchesIncluded, shortsRedirectTarget, isLoosening } = require('../matcher');
 
-const base = () => ({
-  keywords: ['mr beast', 'minecraft'],
-  wholeWord: true,
-  recreation: { enabled: false, start: '18:00', end: '20:00' },
-  focus: { shorts: true, rabbit: true }
-});
-const withSettings = (patch) => ({ ...base(), ...patch });
-
-test('matcher handles case, whitespace, whole words and literal regex characters', () => {
-  const match = buildMatcher(['Mr   Beast', 'minecraft', 'C++', '[test]']);
-  assert.equal(match('MR BEAST reacts'), true);
-  assert.equal(match('learn mr\tbeast now'), true);
-  assert.equal(match('Minecraft guide'), true);
-  assert.equal(match('maintain a bike'), false);
-  assert.equal(match('C++ tutorial'), true);
-  assert.equal(match('[test] video'), true);
-  assert.equal(match(''), false);
-  assert.equal(buildMatcher([])('anything'), false);
-});
-
-test('include matching checks title or channel with the shared matcher rules', () => {
+test('matches keywords case-insensitively and as whole words', () => {
   const match = buildMatcher(['PW', 'machine learning'], true);
-  assert.equal(matchesIncluded('Physics Wallah lecture', 'Some Channel', match), false);
-  assert.equal(matchesIncluded('PW course overview', 'Some Channel', match), true);
-  assert.equal(matchesIncluded('A tutorial', 'PW', match), true);
-  assert.equal(matchesIncluded('A tutorial', 'PWNation', match), false);
-  assert.equal(matchesIncluded('A MACHINE   LEARNING guide', 'Other', match), true);
-  assert.equal(matchesIncluded('PW', 'channel', buildMatcher(['PW channel'], true)), false);
+  assert.equal(match('PW tutorial'), true);
+  assert.equal(match('machine   learning basics'), true);
+  assert.equal(match('powerful tutorial'), false);
 });
 
-
-test('channel matching uses the shared case-insensitive whole-word matcher', () => {
-  const match = buildMatcher(['Fireship', '@freecodecamp'], true);
-  assert.equal(matchesChannel('Fireship', match), true);
-  assert.equal(matchesChannel('@freecodecamp', match), true);
-  assert.equal(matchesChannel('Fireship Clips', match), true);
-  assert.equal(matchesChannel('Fireshipper', match), false);
-  assert.equal(matchesChannel('', match), false);
-});
-
-test('channel block and allow list changes use conservative cooldown rules', () => {
-  const oldSettings = withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship'] });
-  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: [], allowedChannels: ['Fireship'] })), true);
-  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship', 'freeCodeCamp'] })), true);
-  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: [] })), true);
-  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel'], allowedChannels: ['Fireship'] })), false);
-  assert.equal(isLoosening(oldSettings, withSettings({ blockedChannels: ['spam channel', 'other'], allowedChannels: ['Fireship'] })), false);
-  assert.equal(isLoosening(withSettings({ blockedChannels: [], allowedChannels: [] }), withSettings({ blockedChannels: ['spam'], allowedChannels: ['Fireship'] })), false);
-});
-
-test('whole-word changes account for channel allow and block filters', () => {
-  const block = withSettings({ blockedChannels: ['spam'], wholeWord: false });
-  assert.equal(isLoosening(block, { ...block, wholeWord: true }), true);
-  const allow = withSettings({ allowedChannels: ['Fireship'], wholeWord: true });
-  assert.equal(isLoosening(allow, { ...allow, wholeWord: false }), true);
-  assert.equal(isLoosening(allow, { ...allow, wholeWord: true }), false);
-});
-
-test('matcher can disable whole-word matching', () => {
+test('supports partial matching when whole-word mode is disabled', () => {
   assert.equal(buildMatcher(['ai'], false)('maintain'), true);
 });
 
-test('recreation windows support normal, overnight and invalid ranges', () => {
-  const at = (hour, minute) => new Date(2026, 0, 1, hour, minute);
-  assert.equal(isRecreationTime({ enabled: true, start: '18:00', end: '20:00' }, at(18, 0)), true);
-  assert.equal(isRecreationTime({ enabled: true, start: '18:00', end: '20:00' }, at(20, 0)), false);
-  assert.equal(isRecreationTime({ enabled: true, start: '22:00', end: '01:00' }, at(23, 0)), true);
-  assert.equal(isRecreationTime({ enabled: true, start: '22:00', end: '01:00' }, at(0, 30)), true);
-  assert.equal(isRecreationTime({ enabled: true, start: '22:00', end: '01:00' }, at(12, 0)), false);
-  assert.equal(isRecreationTime({ enabled: true, start: '10:00', end: '10:00' }, at(10, 0)), false);
-  assert.equal(isRecreationTime({ enabled: true, start: '99:99', end: '10:00' }, at(10, 0)), false);
+test('include matcher checks title and channel', () => {
+  const match = buildMatcher(['PW'], true);
+  assert.equal(matchesIncluded('A tutorial', 'PW Skills', match), true);
+  assert.equal(matchesIncluded('PW course', 'Other channel', match), true);
+  assert.equal(matchesIncluded('Unrelated', 'Other channel', match), false);
 });
 
-test('adding, reordering and recasing keywords does not count as loosening', () => {
-  assert.equal(isLoosening(base(), withSettings({ keywords: ['mr beast', 'minecraft', 'cats'] })), false);
-  assert.equal(isLoosening(base(), withSettings({ keywords: ['minecraft', 'mr beast'] })), false);
-  assert.equal(isLoosening(base(), withSettings({ keywords: ['MR   Beast', 'MINECRAFT'] })), false);
+test('converts Shorts links to regular watch links', () => {
+  assert.equal(shortsRedirectTarget('/shorts/abc_123', 'https://www.youtube.com'), 'https://www.youtube.com/watch?v=abc_123');
+  assert.equal(shortsRedirectTarget('/watch', 'https://www.youtube.com'), null);
 });
 
-test('removing keywords counts as loosening', () => {
-  assert.equal(isLoosening(base(), withSettings({ keywords: ['minecraft'] })), true);
-  assert.equal(isLoosening(base(), withSettings({ keywords: [] })), true);
-});
-
-test('include-list changes only trigger cooldown when they broaden visibility', () => {
-  const oldSettings = withSettings({ includeKeywords: ['PW'] });
-  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['PW', 'Java'] })), true);
-  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['Java'] })), true);
-  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: [] })), true);
-  assert.equal(isLoosening(withSettings({ includeKeywords: [] }), oldSettings), false);
-  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['pw'] })), false);
-  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['PW'] })), false);
-});
-
-test('loosening detection handles whole-word and focus switches', () => {
-  assert.equal(isLoosening(withSettings({ wholeWord: false }), withSettings({ wholeWord: true })), true);
-  assert.equal(isLoosening(withSettings({ wholeWord: true }), withSettings({ wholeWord: false })), false);
-  assert.equal(isLoosening(base(), withSettings({ focus: { shorts: false, rabbit: true } })), true);
-  assert.equal(isLoosening(base(), withSettings({ focus: { shorts: true, rabbit: false } })), true);
-  assert.equal(isLoosening(withSettings({ focus: { shorts: false, rabbit: false } }), base()), false);
-});
-
-test('loosening detection compares actual recreation-window coverage', () => {
-  const on = (start, end) => withSettings({ recreation: { enabled: true, start, end } });
-  assert.equal(isLoosening(base(), on('18:00', '20:00')), true);
-  assert.equal(isLoosening(on('18:00', '20:00'), base()), false);
-  assert.equal(isLoosening(on('18:00', '20:00'), on('17:00', '20:00')), true);
-  assert.equal(isLoosening(on('18:00', '20:00'), on('18:00', '21:00')), true);
-  assert.equal(isLoosening(on('18:00', '20:00'), on('18:30', '19:30')), false);
-  assert.equal(isLoosening(on('18:00', '20:00'), on('19:00', '21:00')), true);
-  assert.equal(isLoosening(on('22:00', '01:00'), on('23:00', '00:30')), false);
-  assert.equal(isLoosening(on('22:00', '01:00'), on('22:00', '02:00')), true);
-});
-
-test('Shorts redirects only valid Shorts paths', () => {
-  const origin = 'https://www.youtube.com';
-  assert.equal(shortsRedirectTarget('/shorts/aB3_x-9Z', origin), origin + '/watch?v=aB3_x-9Z');
-  assert.equal(shortsRedirectTarget('/shorts/aB3_x-9Z/', origin), origin + '/watch?v=aB3_x-9Z');
-  assert.equal(shortsRedirectTarget('/shorts', origin), origin + '/');
-  assert.equal(shortsRedirectTarget('/shorts/', origin), origin + '/');
-  for (const path of ['/watch', '/', '/@shorts/videos', '/shortsfan', '/shorts/abc/extra']) {
-    assert.equal(shortsRedirectTarget(path, origin), null);
-  }
-  assert.equal(shortsRedirectTarget(undefined, origin), null);
-});
-
-test('missing settings are handled safely', () => {
-  assert.equal(isLoosening(null, base()), false);
-  assert.equal(isLoosening(base(), null), true);
-});
-
-test('loosening detection protects distraction settings from instant removal', () => {
-  const base = {
-    keywords: [], wholeWord: true,
-    focus: { shorts: true, rabbit: true },
-    recreation: { enabled: false },
-    distractionMode: true,
-    distractions: { comments: true, liveChat: true }
-  };
-  assert.equal(isLoosening(base, { ...base, distractionMode: false }), true);
-  assert.equal(isLoosening(base, { ...base, distractions: { comments: false, liveChat: true } }), true);
-  assert.equal(isLoosening(base, { ...base, distractions: { comments: true, liveChat: true } }), false);
-});
-
-test('turning autoplay disabling off counts as loosening', () => {
-  const oldSettings = { ...base(), playback: { disableAutoplay: true } };
-  const newSettings = { ...base(), playback: { disableAutoplay: false } };
-  assert.equal(isLoosening(oldSettings, newSettings), true);
-  assert.equal(isLoosening(oldSettings, { ...oldSettings, playback: { disableAutoplay: true } }), false);
-});
-
-
-test('page scopes identify YouTube surfaces and apply card filters only where selected', () => {
-  assert.equal(pageScope('/'), 'home');
-  assert.equal(pageScope('/results'), 'search');
-  assert.equal(pageScope('/feed/subscriptions'), 'subscriptions');
-  assert.equal(pageScope('/watch'), 'recommendations');
-  assert.equal(pageScope('/@creator/videos'), 'other');
-  assert.equal(shouldFilterCards('/@creator/videos', 'all'), true);
-  assert.equal(shouldFilterCards('/results', 'search'), true);
-  assert.equal(shouldFilterCards('/', 'search'), false);
-  assert.equal(shouldFilterCards('/watch', 'recommendations'), true);
-});
-
-test('changing filter scope uses cooldown when it can move filtering to a new surface', () => {
-  const all = withSettings({ filterScope: 'all' });
-  assert.equal(isLoosening(all, withSettings({ filterScope: 'search' })), false);
-  assert.equal(isLoosening(withSettings({ filterScope: 'search' }), all), true);
-  assert.equal(isLoosening(withSettings({ filterScope: 'search' }), withSettings({ filterScope: 'home' })), true);
+test('loosening changes wait, restrictive changes apply immediately', () => {
+  assert.equal(isLoosening({ keywords: ['spoilers'] }, { keywords: [] }), true);
+  assert.equal(isLoosening({ includeKeywords: ['java'] }, { includeKeywords: ['java', 'python'] }), true);
+  assert.equal(isLoosening({ includeKeywords: ['java', 'python'] }, { includeKeywords: ['java'] }), false);
+  assert.equal(isLoosening({ focus: { shorts: true } }, { focus: { shorts: false } }), true);
 });

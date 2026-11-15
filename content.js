@@ -1,275 +1,499 @@
-(() => {   'use strict';    const KEY = 'ytkb_settings';   const ATTR = 'data-ytkb-hidden';   const COOLDOWN_MS = 60 * 1000;          const BRAND = 'Serein';   const BRAND_URL = 'https://github.com/karansingh-in';   const SHORTS_LINK = 'a[href^="/shorts"]';    const DEFAULTS = {     keywords: [],     includeKeywords: [],     wholeWord: true,     recreation: { enabled: false, start: '18:00', end: '20:00' },     focus: { shorts: true, rabbit: true },     distractionMode: false,     distractions: { ...YTKBDistractions.DEFAULTS },     playback: { disableAutoplay: false, defaultSpeed: 1 },     timeAwareness: { ...YTKBTime.DEFAULTS },     theme: 'auto'   };        const CARD_SELECTORS = [     'ytd-rich-item-renderer',                'ytd-video-renderer',                    'ytd-compact-video-renderer',            'ytd-grid-video-renderer',               'ytd-playlist-renderer',                 'ytd-channel-renderer',                  'ytd-reel-item-renderer',                'ytm-shorts-lockup-view-model',          'yt-lockup-view-model'                 ].join(',');    const ext = (typeof chrome !== 'undefined' && chrome.storage) ? chrome     : (typeof browser !== 'undefined' && browser.storage) ? browser : null;        let settings = normalize(null);   let matcher = buildMatcher([], true);
-  let includeMatcher = buildMatcher([], true);
-  let blockedChannelMatcher = buildMatcher([], true);
-  let allowedChannelMatcher = buildMatcher([], true);
-   const playbackState = { lastApplied: null };   const sessionStore = (() => { try { return window.sessionStorage; } catch (e) { return null; } })();   const timeState = YTKBTime.createState(sessionStore);   let timeReadout = null;   let timeToast = null;   let timeToastTimer = null;   let timeTimer = null;   let statusKind = 'idle';   let statusText = null;   let statusDot = null;   let toggleDot = null;   let applyThemeFn = null;        function normalize(s) {     const kws = s && Array.isArray(s.keywords)       ? s.keywords.filter((k) => typeof k === 'string').map((k) => k.trim()).filter(Boolean)       : [];     const included = s && Array.isArray(s.includeKeywords)
-      ? s.includeKeywords.filter((k) => typeof k === 'string').map((k) => k.trim()).filter(Boolean)
-      : [];
-    const blockedChannels = s && Array.isArray(s.blockedChannels) ? s.blockedChannels.filter((k) => typeof k === 'string').map((k) => k.trim()).filter(Boolean) : [];
-    const allowedChannels = s && Array.isArray(s.allowedChannels) ? s.allowedChannels.filter((k) => typeof k === 'string').map((k) => k.trim()).filter(Boolean) : [];
-    const okTime = (t) => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);     const r = s && s.recreation;     const f = s && s.focus;     return {       keywords: kws,
-      includeKeywords: included,
-      blockedChannels,
-      allowedChannels,
-      filterScope: ['all', 'home', 'search', 'subscriptions', 'recommendations'].includes(s && s.filterScope) ? s.filterScope : 'all',
-      wholeWord: !(s && s.wholeWord === false),       recreation: {         enabled: !!(r && r.enabled),         start: r && okTime(r.start) ? r.start : DEFAULTS.recreation.start,         end: r && okTime(r.end) ? r.end : DEFAULTS.recreation.end       },       focus: {         shorts: !(f && f.shorts === false),         rabbit: !(f && f.rabbit === false)       },       distractionMode: !!(s && s.distractionMode),       distractions: YTKBDistractions.normalize(s && s.distractions),       playback: YTKBPlayback.normalize(s && s.playback),       timeAwareness: YTKBTime.normalize(s && s.timeAwareness),       theme: s && (s.theme === 'light' || s.theme === 'dark') ? s.theme : 'auto'     };   }    function readLS() {     try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; }   }    function load() {     return new Promise((resolve) => {       let done = false;       const finish = (v) => { if (!done) { done = true; resolve(normalize(v)); } };       setTimeout(() => finish(readLS()), 2000);         try {         if (ext && ext.storage && ext.storage.local) {           ext.storage.local.get(KEY, (res) => {             const err = ext.runtime && ext.runtime.lastError;             finish(err ? readLS() : (res && res[KEY]));           });           return;         }       } catch (e) { /* fall through */ }       finish(readLS());     });   }    function save(s) {     try {       if (ext && ext.storage && ext.storage.local) {         ext.storage.local.set({ [KEY]: s }, () => {           const err = ext.runtime && ext.runtime.lastError;           if (err) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }         });         return;       }     } catch (e) { /* fall through */ }     try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}   }        function applySettings(s) {     settings = normalize(s);     matcher = buildMatcher(settings.keywords, settings.wholeWord);
-    includeMatcher = buildMatcher(settings.includeKeywords, settings.wholeWord);
-    blockedChannelMatcher = buildMatcher(settings.blockedChannels, settings.wholeWord);
-    allowedChannelMatcher = buildMatcher(settings.allowedChannels, settings.wholeWord);     scan();     syncTimeTimer();     if (applyThemeFn) applyThemeFn();   }    function syncTimeTimer() {
-    if (settings.timeAwareness.enabled && !document.hidden) {
-      if (timeTimer === null) {
-        if (timeReadout) tickTimeAwareness();
-        timeTimer = setInterval(tickTimeAwareness, 1000);
-      }
-    } else if (timeTimer !== null) {
-      clearInterval(timeTimer);
-      timeTimer = null;
-      YTKBTime.pause(timeState, Date.now());
-      YTKBTime.saveState(sessionStore, timeState);
+(() => {
+  'use strict';
+
+  if (window.__sereinLoaded) return;
+  window.__sereinLoaded = true;
+
+  const STORAGE_KEY = 'ytkb_settings'; // Keep the existing key so upgrades retain user settings.
+  const HIDDEN_ATTR = 'data-serein-hidden';
+  const BRAND_URL = 'https://github.com/karansingh-in/Serein';
+  const CARD_SELECTORS = [
+    'ytd-rich-item-renderer', 'ytd-video-renderer', 'ytd-compact-video-renderer',
+    'ytd-grid-video-renderer', 'yt-lockup-view-model', 'ytm-shorts-lockup-view-model'
+  ].join(',');
+  const DEFAULTS = {
+    keywords: [],
+    includeKeywords: [],
+    wholeWord: true,
+    focus: { shorts: true, recommendations: true, endScreens: false, comments: false, autoplay: false },
+    recreation: { enabled: false, start: '18:00', end: '20:00' },
+    theme: 'light'
+  };
+
+  const extensionApi = typeof browser !== 'undefined' && browser.storage
+    ? browser
+    : (typeof chrome !== 'undefined' && chrome.storage ? chrome : null);
+  let settings = normalize(null);
+  let blockMatcher = SereinMatcher.buildMatcher([], true);
+  let includeMatcher = SereinMatcher.buildMatcher([], true);
+  const originalStyles = new WeakMap();
+  let scanTimer = null;
+  let scheduleClock = null;
+  let host = null;
+  let panel = null;
+  let trigger = null;
+  let status = null;
+  let note = null;
+
+  function parseList(value) {
+    const seen = new Set();
+    const out = [];
+    for (const raw of Array.isArray(value) ? value : []) {
+      if (typeof raw !== 'string') continue;
+      const item = raw.trim();
+      const key = item.toLocaleLowerCase();
+      if (item && !seen.has(key)) { seen.add(key); out.push(item); }
     }
+    return out;
   }
 
-  function tickTimeAwareness() {
-    const result = YTKBTime.tick(settings.timeAwareness, document, timeState, Date.now());
-    if (timeReadout) {
-      timeReadout.textContent = settings.timeAwareness.enabled
-        ? (result.active ? 'Watching · ' : 'Active watch time · ') + YTKBTime.format(result.activeMs)
-        : 'Tracking off';
-    }
-    if (result.reminder && timeToast) {
-      timeToast.textContent = 'You have been watching for ' + settings.timeAwareness.reminderMinutes + ' minutes. Take a short break?';
-      timeToast.style.display = 'block';
-      clearTimeout(timeToastTimer);
-      timeToastTimer = setTimeout(() => { if (timeToast) timeToast.style.display = 'none'; }, 8000);
-    }
-    if (settings.timeAwareness.enabled && Date.now() - timeState.lastSavedAt >= 10000) {
-      YTKBTime.saveState(sessionStore, timeState);
-      timeState.lastSavedAt = Date.now();
-    }
-  }
-
-  function hideEl(el) {     el.__ytkbPrev = [el.style.getPropertyValue('display'), el.style.getPropertyPriority('display')];     el.setAttribute(ATTR, '');     el.style.setProperty('display', 'none', 'important');   }    function showEl(el) {     el.removeAttribute(ATTR);     const prev = el.__ytkbPrev;     if (prev && prev[0]) el.style.setProperty('display', prev[0], prev[1]);     else el.style.removeProperty('display');     el.__ytkbPrev = null;   }    function collectShorts(desired) {
-    for (const el of document.querySelectorAll('ytd-reel-shelf-renderer')) desired.add(el);
-    for (const el of document.querySelectorAll('ytd-rich-section-renderer')) {
-      if (el.querySelector('ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ' + SHORTS_LINK)) desired.add(el);
-    }
-    for (const el of document.querySelectorAll('ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer')) {
-      if (el.querySelector(SHORTS_LINK)) desired.add(el);
-    }
-    for (const el of document.querySelectorAll('yt-tab-shape')) {
-      const title = (el.getAttribute('tab-title') || '').trim().toLowerCase();
-      if (title === 'shorts' || el.querySelector(SHORTS_LINK)) desired.add(el);
-    }
-  }
-
-  function collectRabbit(desired) {           const sel = 'ytd-watch-next-secondary-results-renderer';     for (const el of document.querySelectorAll(sel)) desired.add(el);   }    function cardMetadata(card) {
-    const titleEl = card.querySelector('#video-title, a#video-title-link, yt-formatted-string#video-title, a.yt-lockup-metadata-view-model__title, yt-lockup-metadata-view-model a[title], h3 a[title], h3 a');
-    const channelEl = card.querySelector('ytd-channel-name a, #channel-name a, .ytd-channel-name a, yt-formatted-string.ytd-channel-name, yt-content-metadata-view-model a, a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]');
-    const title = titleEl ? (titleEl.getAttribute('title') || titleEl.textContent || '').trim() : '';
-    const channel = channelEl ? (channelEl.getAttribute('title') || channelEl.textContent || '').trim() : '';
-    return { title, channel, hasMetadata: !!(title || channel), hasVideoTitle: !!title };
-  }
-
-  function scan() {     const recreation = isRecreationTime(settings.recreation, new Date());     YTKBPlayback.apply(settings.playback, document, playbackState, location.pathname);     const desired = new Set();     const countable = [];      if (!recreation) {       const shortsOn = settings.focus.shorts;        if (shortsOn) {         const target = shortsRedirectTarget(location.pathname, location.origin);         if (target) location.replace(target);       }        const kwActive = settings.keywords.length > 0;
-       const includeActive = settings.includeKeywords.length > 0;
-       const blockedChannelsActive = settings.blockedChannels.length > 0;
-       const allowedChannelsActive = settings.allowedChannels.length > 0;
-       const filterCards = YTKBMatcher.shouldFilterCards(location.pathname, settings.filterScope);
-      if ((filterCards && (kwActive || includeActive || blockedChannelsActive || allowedChannelsActive)) || shortsOn) {         for (const el of document.querySelectorAll(CARD_SELECTORS)) {           let block = false;           if (filterCards && kwActive) {             const text = el.textContent;             block = !!(text && text.trim() && matcher(text));           }           const meta = (filterCards && (includeActive || blockedChannelsActive || allowedChannelsActive)) ? cardMetadata(el) : null;
-           if (!block && includeActive && meta && meta.hasMetadata && !YTKBMatcher.matchesIncluded(meta.title, meta.channel, includeMatcher)) block = true;
-           if (!block && meta && meta.hasVideoTitle && blockedChannelsActive && YTKBMatcher.matchesChannel(meta.channel, blockedChannelMatcher)) block = true;
-           if (!block && meta && meta.hasVideoTitle && allowedChannelsActive && !YTKBMatcher.matchesChannel(meta.channel, allowedChannelMatcher)) block = true;
-           if (!block && shortsOn && el.querySelector(SHORTS_LINK)) block = true;           if (block) { desired.add(el); countable.push(el); }         }       }              if (settings.focus.rabbit) collectRabbit(desired);
-      if (shortsOn && !settings.distractionMode) collectShorts(desired);
-      if (settings.distractionMode) YTKBDistractions.collect(settings.distractions, document, desired);     }      for (const el of document.querySelectorAll('[' + ATTR + ']')) {       if (!desired.has(el)) showEl(el);     }     for (const el of desired) {       if (!el.hasAttribute(ATTR)) hideEl(el);     }            let hiddenCount = 0;     for (const el of countable) {       const p = el.parentElement;       if (!(p && p.closest('[' + ATTR + ']'))) hiddenCount++;     }     renderStatus(hiddenCount, recreation);   }    let timer = null;   function schedule() {     if (timer !== null) return;     timer = setTimeout(() => { timer = null; scan(); }, 300);   }        const PALETTES = {     dark: {       scheme: 'dark', bg: '#0b0b0c', surface: '#141416',       border: 'rgba(255,255,255,0.10)', borderStrong: 'rgba(255,255,255,0.32)',       text: '#f4f4f5', muted: 'rgba(244,244,245,0.58)',       accentBg: '#f4f4f5', accentFg: '#0b0b0c',       ok: '#34d399', warn: '#f5b942', idle: 'rgba(244,244,245,0.35)'     },     light: {       scheme: 'light', bg: '#fafaf9', surface: '#ffffff',       border: 'rgba(0,0,0,0.10)', borderStrong: 'rgba(0,0,0,0.34)',       text: '#0d0d0e', muted: 'rgba(13,13,14,0.58)',       accentBg: '#0d0d0e', accentFg: '#fafaf9',       ok: '#059669', warn: '#d97706', idle: 'rgba(13,13,14,0.35)'     }   };   const FONT = "Inter,Roboto,'Segoe UI','Noto Sans','DejaVu Sans',Arial,sans-serif";   const BASE = {     fontFamily: FONT, boxSizing: 'border-box', lineHeight: '1.4', letterSpacing: '-0.005em',     color: (p) => p.text   };   const hairline = (p) => '1px solid ' + p.border;    let P = PALETTES.dark;   const themed = [];         const paintHooks = [];      function resolveTheme() {     if (settings.theme === 'light' || settings.theme === 'dark') return settings.theme;     return document.documentElement.hasAttribute('dark') ? 'dark' : 'light';     }    function repaint() {     for (const [el, k, fn] of themed) el.style[k] = fn(P);     for (const f of paintHooks) f();   }    function h(tag, style, props, ...kids) {     const el = document.createElement(tag);     if (style) {       for (const k of Object.keys(style)) {         const v = style[k];         if (typeof v === 'function') { themed.push([el, k, v]); el.style[k] = v(P); }         else el.style[k] = v;       }     }     if (props) Object.assign(el, props);     for (const k of kids) el.append(k);     return el;   }    function paintStatus() {     const c = P[statusKind] || P.idle;     if (statusDot) statusDot.style.background = c;     if (toggleDot) toggleDot.style.background = c;   }   paintHooks.push(paintStatus);    function renderStatus(hiddenCount, recreation) {     let text;     if (recreation) {       statusKind = 'warn';       text = 'Recreation time \u00b7 resumes at ' + settings.recreation.end;     } else if (!settings.keywords.length && !settings.includeKeywords.length && !settings.blockedChannels.length && !settings.allowedChannels.length && !settings.focus.shorts && !settings.focus.rabbit && !settings.distractionMode) {       statusKind = 'idle';       text = 'Idle \u00b7 nothing to block';     } else {       statusKind = 'ok';       text = 'Blocking \u00b7 ' + hiddenCount + ' hidden on this page';     }     if (statusText) statusText.textContent = text;     paintStatus();   }    function focusRing(el) {     el.addEventListener('focus', () => { el.style.borderColor = P.text; });     el.addEventListener('blur', () => { el.style.borderColor = P.border; });   }    function dim(btn) {     btn.addEventListener('pointerdown', () => { btn.style.opacity = '0.8'; });     ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) =>       btn.addEventListener(ev, () => { btn.style.opacity = btn.disabled ? '0.5' : '1'; }));   }    function version() {     try { return ext.runtime.getManifest().version; } catch (e) { return ''; }   }    function blockIcon() {     const NS = 'http://www.w3.org/2000/svg';     const mk = (tag, attrs) => {       const n = document.createElementNS(NS, tag);       for (const k of Object.keys(attrs)) n.setAttribute(k, attrs[k]);       return n;     };     const svg = mk('svg', { viewBox: '0 0 24 24', width: '20', height: '20', fill: 'none',       stroke: 'currentColor', 'stroke-width': '1.75', 'stroke-linecap': 'round' });     svg.append(mk('circle', { cx: '12', cy: '12', r: '8.5' }),       mk('line', { x1: '6', y1: '18', x2: '18', y2: '6' }));     return svg;   }        function check(role, title, sub) {     const input = h('input', { position: 'absolute', opacity: '0', width: '1px', height: '1px', margin: '0' },       { type: 'checkbox' });     input.dataset.role = role;     const mark = h('span', {       width: '18px', height: '18px', flex: '0 0 18px', marginTop: '1px', borderRadius: '4px',       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px',       fontWeight: '700', border: '1px solid transparent'     });     const sync = () => {       mark.textContent = input.checked ? '\u2713' : '';       mark.style.background = input.checked ? P.text : 'transparent';       mark.style.color = P.bg;       mark.style.borderColor = input.checked ? P.text : P.borderStrong;     };     paintHooks.push(sync);     input.addEventListener('change', sync);     input.addEventListener('focus', () => { mark.style.boxShadow = '0 0 0 2px ' + P.borderStrong; });     input.addEventListener('blur', () => { mark.style.boxShadow = 'none'; });     const text = h('span', { ...BASE, fontSize: '14px', fontWeight: '500' }, null, title,       sub ? h('span', { ...BASE, display: 'block', fontSize: '12px', fontWeight: '400', color: (p) => p.muted }, null, sub) : '');     const row = h('label', {       ...BASE, position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '12px',       padding: '8px 0', minHeight: '40px', cursor: 'pointer'     }, null, input, mark, text);     return { row, input, sync };   }    function buildUI() {     if (document.getElementById('ytkb-host')) return;     P = PALETTES[resolveTheme()];      const host = document.createElement('div');     host.id = 'ytkb-host';           const root = host.attachShadow({ mode: 'open' });      const label = (txt) => h('div', { ...BASE, fontSize: '12px', fontWeight: '500',       color: (p) => p.muted, margin: '0 0 8px' }, null, txt);            const seg = h('div', { display: 'flex', border: hairline, borderRadius: '4px', overflow: 'hidden' });     const segBtns = {};     for (const [val, name] of [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']]) {       const b = h('button', {         ...BASE, fontSize: '12px', fontWeight: '500', minHeight: '30px', padding: '0 10px',         border: 'none', borderRadius: '0', cursor: 'pointer', background: 'transparent'       }, { type: 'button' }, name);       b.dataset.role = 'theme-' + val;       b.addEventListener('click', () => {         settings = { ...settings, theme: val };         save(settings);         applyThemeFn();       });       segBtns[val] = b;       seg.append(b);     }     paintHooks.push(() => {       for (const v of Object.keys(segBtns)) {         const on = settings.theme === v;         segBtns[v].style.background = on ? P.accentBg : 'transparent';         segBtns[v].style.color = on ? P.accentFg : P.muted;       }     });      statusDot = h('span', { width: '8px', height: '8px', borderRadius: '50%', flex: '0 0 8px' });     statusText = h('span', { ...BASE, fontSize: '13px', color: (p) => p.muted }, null, '');      const header = h('div', { padding: '14px 16px 12px', borderBottom: hairline }, null,       h('div', { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }, null,         h('span', { ...BASE, fontSize: '15px', fontWeight: '600', letterSpacing: '-0.015em' }, null, 'Serein'),         seg),       h('div', { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }, null, statusDot, statusText));            const textarea = h('textarea', {       ...BASE, display: 'block', width: '100%', height: '112px', fontSize: '16px', padding: '10px 12px',       margin: '0 0 6px', background: (p) => p.surface, border: hairline, borderRadius: '4px',       resize: 'vertical', outline: 'none', caretColor: 'currentColor'     }, { placeholder: 'One per line', spellcheck: false, autocapitalize: 'off' });     textarea.dataset.role = 'keywords';     focusRing(textarea);     const hint = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '0 0 22px' }, null,       'Matches video title and channel name. Commas also work.');
-    const includeLabel = label('Only show videos matching');
-    const includeTextarea = h('textarea', {
-      ...BASE, display: 'block', width: '100%', height: '84px', fontSize: '16px', padding: '10px 12px',
-      margin: '0 0 6px', background: (p) => p.surface, border: hairline, borderRadius: '4px',
-      resize: 'vertical', outline: 'none', caretColor: 'currentColor'
-    }, { placeholder: 'e.g. PW, Java, machine learning', spellcheck: false, autocapitalize: 'off' });
-    includeTextarea.dataset.role = 'include-keywords';
-    focusRing(includeTextarea);
-    const includeHint = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '0 0 22px' }, null,
-      'Keep videos when the title or channel matches at least one term. Commas also work.');
-    const channelField = (role, title, placeholder, help) => {
-      const fieldLabel = label(title);
-      const field = h('textarea', {
-        ...BASE, display: 'block', width: '100%', height: '68px', fontSize: '15px', padding: '9px 11px',
-        margin: '0 0 6px', background: (p) => p.surface, border: hairline, borderRadius: '4px',
-        resize: 'vertical', outline: 'none', caretColor: 'currentColor'
-      }, { placeholder, spellcheck: false, autocapitalize: 'off' });
-      field.dataset.role = role;
-      focusRing(field);
-      const description = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '0 0 14px' }, null, help);
-      return { fieldLabel, field, description };
+  function normalize(source) {
+    const s = source && typeof source === 'object' ? source : {};
+    const legacyFocus = s.focus || {};
+    const legacyDistractions = s.distractions || {};
+    const legacyPlayback = s.playback || {};
+    const focus = {
+      shorts: legacyFocus.shorts !== false,
+      recommendations: legacyFocus.recommendations !== false && legacyFocus.rabbit !== false,
+      endScreens: legacyFocus.endScreens === true || (!!s.distractionMode && legacyDistractions.endScreenRecommendations === true),
+      comments: legacyFocus.comments === true || (!!s.distractionMode && legacyDistractions.comments === true),
+      autoplay: legacyFocus.autoplay === true || legacyPlayback.disableAutoplay === true
     };
-    const blockedChannelField = channelField('blocked-channels', 'Block channels', 'e.g. MrBeast, @channel', 'Hide videos from channels matching these names or handles.');
-    const allowedChannelField = channelField('allowed-channels', 'Only show channels matching', 'e.g. Fireship, @freecodecamp', 'When set, videos from other channels are hidden.');
-            const shorts = check('shorts', 'Hide Shorts', 'Filter Shorts videos and redirect direct Shorts links. The checklist controls shelves/navigation when enabled.');     const rabbit = check('rabbit', 'Hide recommendations', 'Hide the watch-page recommendation sidebar.');     const whole = check('whole', 'Whole words only', 'So \u201cai\u201d won\u2019t match \u201cmaintain\u201d.');
+    // Migrate channel lists into the two title/channel keyword lists.
+    const blocked = parseList([...(Array.isArray(s.keywords) ? s.keywords : []), ...(Array.isArray(s.blockedChannels) ? s.blockedChannels : [])]);
+    const included = parseList([...(Array.isArray(s.includeKeywords) ? s.includeKeywords : []), ...(Array.isArray(s.allowedChannels) ? s.allowedChannels : [])]);
+    const okTime = (v) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+    const rec = s.recreation || {};
+    return {
+      keywords: blocked,
+      includeKeywords: included,
+      wholeWord: s.wholeWord !== false,
+      focus,
+      recreation: {
+        enabled: !!rec.enabled,
+        start: okTime(rec.start) ? rec.start : DEFAULTS.recreation.start,
+        end: okTime(rec.end) ? rec.end : DEFAULTS.recreation.end
+      },
+      theme: ['light', 'dark', 'auto'].includes(s.theme) ? s.theme : 'light'
+    };
+  }
 
-    const focusModeSelect = h('select', {
-      ...BASE, width: '100%', minHeight: '38px', padding: '6px 10px', fontSize: '14px',
-      background: (p) => p.surface, border: hairline, borderRadius: '4px',
-      color: (p) => p.text, colorScheme: (p) => p.scheme, outline: 'none'
-    }, { 'aria-label': 'Focus mode' },
-      ...[['custom', 'Custom'], ['minimal', 'Minimal'], ['study', 'Study'], ['deep', 'Deep Focus']]
-        .map(([value, title]) => h('option', {}, { value }, title)));
-    focusModeSelect.dataset.role = 'focus-mode';
-    focusRing(focusModeSelect);
-    const focusModeHint = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '5px 0 16px' },
-      null, 'Presets adjust existing focus, distraction and autoplay settings.');
-
-    const filterScopeSelect = h('select', {
-      ...BASE, width: '100%', minHeight: '38px', padding: '6px 10px', fontSize: '14px',
-      background: (p) => p.surface, border: hairline, borderRadius: '4px',
-      color: (p) => p.text, colorScheme: (p) => p.scheme, outline: 'none'
-    }, { 'aria-label': 'Filter videos on' },
-      ...[['all', 'All YouTube'], ['home', 'Home'], ['search', 'Search results'],
-        ['subscriptions', 'Subscriptions'], ['recommendations', 'Watch recommendations']]
-        .map(([value, title]) => h('option', {}, { value }, title)));
-    filterScopeSelect.dataset.role = 'filter-scope';
-    focusRing(filterScopeSelect);
-    const filterScopeHint = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '5px 0 16px' },
-      null, 'Controls where keyword and channel filters run. Shorts and interface controls remain separate.');
-
-    const distractionMaster = check('distraction-master', 'Hide distracting elements', 'Hide selected YouTube interface distractions.');
-    const distractionLabels = [
-      ['trendingExplore', 'Trending / Explore'],
-      ['communityPosts', 'Community posts'],
-      ['endScreenRecommendations', 'End-screen recommendations'],
-      ['shortsShelf', 'Shorts shelves'],
-      ['shortsNavigation', 'Shorts navigation'],
-      ['notificationBell', 'Notification bell'],
-      ['createButton', 'Create button'],
-      ['merchandise', 'Merchandise sections'],
-      ['memberships', 'Membership promotions'],
-      ['promotions', 'Promotional sections'],
-      ['comments', 'Comments'],
-      ['liveChat', 'Live chat']
-    ];
-    const distractionChecks = distractionLabels.map(([key, title]) => [key, check('distraction-' + key, title, '')]);
-    const distractionList = h('div', { display: 'none', padding: '4px 0 0 30px' }, null,
-      ...distractionChecks.map(([, item]) => item.row));
-    const distractionDetails = h('details', { ...BASE, margin: '0 0 8px' }, null,
-      h('summary', { ...BASE, fontSize: '12px', color: (p) => p.muted, cursor: 'pointer', padding: '4px 0 8px' }, null, 'Choose elements'),
-      distractionList);
-    distractionDetails.addEventListener('toggle', () => {
-      distractionList.style.display = distractionDetails.open ? 'block' : 'none';
+  function loadSettings() {
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = (value) => { if (!settled) { settled = true; resolve(normalize(value)); } };
+      const fallback = () => {
+        try { done(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')); }
+        catch (_) { done(null); }
+      };
+      const timeout = setTimeout(fallback, 1800);
+      try {
+        if (extensionApi && extensionApi.storage && extensionApi.storage.local) {
+          extensionApi.storage.local.get(STORAGE_KEY, (result) => {
+            clearTimeout(timeout);
+            const error = extensionApi.runtime && extensionApi.runtime.lastError;
+            if (error) fallback(); else done(result && result[STORAGE_KEY]);
+          });
+        } else { clearTimeout(timeout); fallback(); }
+      } catch (_) { clearTimeout(timeout); fallback(); }
     });
-    distractionMaster.input.addEventListener('change', () => {
-      distractionDetails.open = distractionMaster.input.checked;
-      distractionList.style.display = distractionDetails.open ? 'block' : 'none';
-    });
+  }
 
-    const autoplay = check('disable-autoplay', 'Disable autoplay', 'Stop YouTube from automatically playing the next video.');
-    const speedSelect = h('select', {
-      ...BASE, width: '100%', minHeight: '38px', padding: '6px 10px', fontSize: '14px',
-      background: (p) => p.surface, border: hairline, borderRadius: '4px',
-      color: (p) => p.text, colorScheme: (p) => p.scheme, outline: 'none'
-    }, { 'aria-label': 'Default playback speed' },
-      ...YTKBPlayback.SPEEDS.map((speed) => h('option', {}, { value: String(speed) }, speed === 1 ? 'Normal (1x)' : speed + 'x')));
-    speedSelect.dataset.role = 'default-speed';
-    focusRing(speedSelect);
-    const speedRow = h('div', { ...BASE, margin: '4px 0 12px 30px' }, null,
-      h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '0 0 6px' }, null, 'Default playback speed'), speedSelect);
-
-    const timeTracking = check('time-tracking', 'Track active viewing time', 'Counts only while a video is playing in the active tab.');
-    const reminderSelect = h('select', {
-      ...BASE, width: '100%', minHeight: '36px', padding: '6px 10px', fontSize: '13px',
-      background: (p) => p.surface, border: hairline, borderRadius: '4px',
-      color: (p) => p.text, colorScheme: (p) => p.scheme, outline: 'none'
-    }, { 'aria-label': 'Viewing time reminder' },
-      ...YTKBTime.REMINDERS.map((minutes) => h('option', {}, { value: String(minutes) }, minutes === 0 ? 'No reminder' : 'Remind after ' + minutes + ' minutes')));
-    reminderSelect.dataset.role = 'time-reminder';
-    focusRing(reminderSelect);
-    const reminderRow = h('div', { ...BASE, margin: '4px 0 8px 30px' }, null,
-      h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '0 0 6px' }, null, 'Break reminder'), reminderSelect);
-    timeReadout = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '4px 0 0 30px', fontVariantNumeric: 'tabular-nums' }, null, 'Tracking off');
-
-    const rec = check('rec', 'Recreation time', 'Pause all blocking during this window.');     const timeStyle = {       ...BASE, fontSize: '16px', padding: '6px 10px', minHeight: '40px', background: (p) => p.surface,       border: hairline, borderRadius: '4px', colorScheme: (p) => p.scheme, outline: 'none'     };     const startInput = h('input', timeStyle, { type: 'time' });     const endInput = h('input', timeStyle, { type: 'time' });     startInput.dataset.role = 'rec-start';     endInput.dataset.role = 'rec-end';     focusRing(startInput); focusRing(endInput);     const recRow = h('div', {       ...BASE, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', margin: '4px 0 0 30px',       fontSize: '13px', color: (p) => p.muted     }, null, 'from', startInput, 'to', endInput);            const saveBtn = h('button', {       ...BASE, display: 'block', width: '100%', minHeight: '44px', fontSize: '14px', fontWeight: '600',       background: (p) => p.accentBg, color: (p) => p.accentFg, border: 'none', borderRadius: '4px',       cursor: 'pointer', margin: '22px 0 0'     }, { type: 'button' }, 'Save');     saveBtn.dataset.role = 'save';     dim(saveBtn);     const cancelBtn = h('button', {       ...BASE, display: 'none', width: '100%', minHeight: '40px', fontSize: '13px', fontWeight: '500',       background: 'transparent', color: (p) => p.muted, border: hairline, borderRadius: '4px',       cursor: 'pointer', margin: '8px 0 0'     }, { type: 'button' }, 'Cancel change');     cancelBtn.dataset.role = 'cancel';     const note = h('div', { ...BASE, fontSize: '12px', color: (p) => p.muted, margin: '10px 0 0', minHeight: '16px' });     note.dataset.role = 'note';            const ver = version();     const footer = h('div', {       ...BASE, display: 'flex', justifyContent: 'space-between', gap: '8px', padding: '10px 16px',       borderTop: hairline, fontSize: '12px', color: (p) => p.muted     }, null,       h('span', { ...BASE, color: (p) => p.muted }, null, 'Made by ',         h('a', { ...BASE, fontWeight: '500', textDecoration: 'none', borderBottom: (p) => '1px solid ' + p.borderStrong },           { href: BRAND_URL, target: '_blank', rel: 'noopener noreferrer' }, BRAND)),       h('span', { ...BASE, color: (p) => p.muted }, null, ver ? 'v' + ver : ''));      const settingsGroup = (title, ...children) => h('details', {
-      ...BASE, borderTop: hairline, padding: '10px 0 2px', margin: '0'
-    }, null,
-      h('summary', {
-        ...BASE, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        minHeight: '28px', fontSize: '13px', fontWeight: '600', color: (p) => p.text,
-        cursor: 'pointer', listStyle: 'revert'
-      }, { tabIndex: 0 }, title),
-      h('div', { padding: '8px 0 4px' }, null, ...children));
-
-    const channelFilters = settingsGroup('Channel filters', blockedChannelField.fieldLabel, blockedChannelField.field, blockedChannelField.description, allowedChannelField.fieldLabel, allowedChannelField.field, allowedChannelField.description);
-
-    const body = h('div', { padding: '12px 16px 16px' }, null,
-      label('Focus mode'), focusModeSelect, focusModeHint,
-      label('Filter videos on'), filterScopeSelect, filterScopeHint,
-      label('Block keywords'), textarea, hint,
-      includeLabel, includeTextarea, includeHint,
-      channelFilters,
-      settingsGroup('Focus', shorts.row, rabbit.row, whole.row),
-      settingsGroup('Distractions', distractionMaster.row, distractionDetails),
-      settingsGroup('Playback', autoplay.row, speedRow),
-      settingsGroup('Time awareness', timeTracking.row, reminderRow, timeReadout),
-      settingsGroup('Schedule', rec.row, recRow),
-      saveBtn, cancelBtn, note);
-
-      const panel = h('div', {       ...BASE, position: 'fixed', left: '16px', bottom: '76px', width: 'min(340px, 92vw)',       maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', background: (p) => p.bg, border: hairline,       borderRadius: '6px', zIndex: '2147483647', display: 'none'     }, null, header, body, footer);            toggleDot = h('span', { position: 'absolute', top: '7px', right: '7px', width: '8px', height: '8px', borderRadius: '50%' });     const toggle = h('button', {       ...BASE, position: 'fixed', left: '16px', bottom: '20px', width: '44px', height: '44px', padding: '0',       display: 'flex', alignItems: 'center', justifyContent: 'center', background: (p) => p.surface,       border: hairline, borderRadius: '4px', cursor: 'pointer', zIndex: '2147483647'     }, { type: 'button', title: 'Serein' }, blockIcon(), toggleDot);     toggle.dataset.role = 'toggle';     dim(toggle);      function applyFocusPreset(id) {
-      if (id === 'custom') {
-        focusModeSelect.value = YTKBPresets.identify(collect());
+  function saveSettings() {
+    try {
+      if (extensionApi && extensionApi.storage && extensionApi.storage.local) {
+        extensionApi.storage.local.set({ [STORAGE_KEY]: settings });
         return;
       }
-      const next = YTKBPresets.apply(id, collect());
-      shorts.input.checked = next.focus.shorts;
-      rabbit.input.checked = next.focus.rabbit;
-      distractionMaster.input.checked = next.distractionMode;
-      for (const [key, item] of distractionChecks) item.input.checked = next.distractions[key];
-      autoplay.input.checked = next.playback.disableAutoplay;
-      timeTracking.input.checked = next.timeAwareness.enabled;
-      distractionDetails.open = next.distractionMode;
-      distractionList.style.display = distractionDetails.open ? 'block' : 'none';
-      [shorts, rabbit, distractionMaster, autoplay, timeTracking, ...distractionChecks.map(([, item]) => item)]
-        .forEach((item) => item.sync());
-    }
-    focusModeSelect.addEventListener('change', () => applyFocusPreset(focusModeSelect.value));
+    } catch (_) { /* use local fallback */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch (_) { /* storage unavailable */ }
+  }
 
-    const inputs = [shorts, rabbit, whole, rec, distractionMaster, autoplay, timeTracking, ...distractionChecks.map(([, item]) => item)];     function fill() {       textarea.value = settings.keywords.join('\n');
-      includeTextarea.value = settings.includeKeywords.join('\n');
-      blockedChannelField.field.value = settings.blockedChannels.join('\n');
-      allowedChannelField.field.value = settings.allowedChannels.join('\n');
-      focusModeSelect.value = YTKBPresets.identify(settings);
-      filterScopeSelect.value = settings.filterScope;       shorts.input.checked = settings.focus.shorts;       rabbit.input.checked = settings.focus.rabbit;       whole.input.checked = settings.wholeWord;       rec.input.checked = settings.recreation.enabled;       distractionMaster.input.checked = settings.distractionMode;       for (const [key, item] of distractionChecks) item.input.checked = settings.distractions[key];       autoplay.input.checked = settings.playback.disableAutoplay;       speedSelect.value = String(settings.playback.defaultSpeed);       timeTracking.input.checked = settings.timeAwareness.enabled;       reminderSelect.value = String(settings.timeAwareness.reminderMinutes);       timeReadout.textContent = settings.timeAwareness.enabled ? 'Active watch time · ' + YTKBTime.format(timeState.activeMs) : 'Tracking off';       distractionDetails.open = settings.distractionMode;       distractionList.style.display = distractionDetails.open ? 'block' : 'none';       startInput.value = settings.recreation.start;       endInput.value = settings.recreation.end;       inputs.forEach((c) => c.sync());     }      function collect() {       const seen = new Set();       const kws = [];       for (const part of textarea.value.split(/[\n,]/)) {         const k = part.trim();         const norm = k.toLowerCase();         if (k && !seen.has(norm)) { seen.add(norm); kws.push(k); }       }       const parseList = (value) => {
-        const seen = new Set();
-        const result = [];
-        for (const part of value.split(/[\n,]/)) {
-          const item = part.trim();
-          const key = item.toLowerCase();
-          if (item && !seen.has(key)) { seen.add(key); result.push(item); }
+  function applySettings(next) {
+    settings = normalize(next);
+    blockMatcher = SereinMatcher.buildMatcher(settings.keywords, settings.wholeWord);
+    includeMatcher = SereinMatcher.buildMatcher(settings.includeKeywords, settings.wholeWord);
+    scheduleScan();
+    if (settings.recreation.enabled && !scheduleClock) scheduleClock = setInterval(scheduleScan, 60000);
+    if (!settings.recreation.enabled && scheduleClock) { clearInterval(scheduleClock); scheduleClock = null; }
+    applyTheme();
+  }
+
+  function matchesCard(card) {
+    const titleNode = card.querySelector('#video-title, a#video-title-link, yt-formatted-string#video-title, h3 a[title]');
+    const title = titleNode ? (titleNode.getAttribute('title') || titleNode.textContent || '').trim() : '';
+    const channelNode = card.querySelector('ytd-channel-name a, #channel-name a, .ytd-channel-name a, a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]');
+    const channel = channelNode ? (channelNode.getAttribute('title') || channelNode.textContent || '').trim() : '';
+    if (!title && !channel) return false;
+    const searchable = title + '\n' + channel;
+    if (blockMatcher(searchable)) return false;
+    if (settings.includeKeywords.length && !SereinMatcher.matchesIncluded(title, channel, includeMatcher)) return false;
+    return true;
+  }
+
+  function hide(element) {
+    if (!element || element.hasAttribute(HIDDEN_ATTR)) return;
+    originalStyles.set(element, {
+      display: element.style.getPropertyValue('display'),
+      priority: element.style.getPropertyPriority('display')
+    });
+    element.setAttribute(HIDDEN_ATTR, '');
+    element.style.setProperty('display', 'none', 'important');
+  }
+
+  function show(element) {
+    if (!element || !element.hasAttribute(HIDDEN_ATTR)) return;
+    element.removeAttribute(HIDDEN_ATTR);
+    const previous = originalStyles.get(element);
+    if (previous && previous.display) element.style.setProperty('display', previous.display, previous.priority);
+    else element.style.removeProperty('display');
+    originalStyles.delete(element);
+  }
+
+  function collectHidden() {
+    const desired = new Set();
+    const inRecreation = isRecreationTime();
+    if (!inRecreation) {
+      if (settings.keywords.length || settings.includeKeywords.length) {
+        for (const card of document.querySelectorAll(CARD_SELECTORS)) {
+          if (settings.focus.shorts && card.querySelector('a[href^="/shorts/"]')) { desired.add(card); continue; }
+          if (!matchesCard(card)) desired.add(card);
         }
-        return result;
-      };
-      const includeKws = parseList(includeTextarea.value);
-      const blockedChannels = parseList(blockedChannelField.field.value);
-      const allowedChannels = parseList(allowedChannelField.field.value);
-      return normalize({         keywords: kws,
-        includeKeywords: includeKws,
-        blockedChannels,
-        allowedChannels,
-        filterScope: filterScopeSelect.value,         wholeWord: whole.input.checked,         recreation: {           enabled: rec.input.checked,           start: startInput.value || DEFAULTS.recreation.start,           end: endInput.value || DEFAULTS.recreation.end         },         focus: { shorts: shorts.input.checked, rabbit: rabbit.input.checked },         distractionMode: distractionMaster.input.checked,         distractions: Object.fromEntries(distractionChecks.map(([key, item]) => [key, item.input.checked])),         playback: { disableAutoplay: autoplay.input.checked, defaultSpeed: Number(speedSelect.value) },         timeAwareness: { enabled: timeTracking.input.checked, reminderMinutes: Number(reminderSelect.value) },         theme: settings.theme       });     }      let noteTimer = null;     function flash(msg) {       note.textContent = msg;       clearTimeout(noteTimer);       if (msg) noteTimer = setTimeout(() => { note.textContent = ''; }, 2500);     }      function commit(next) {       const final = normalize({ ...next, theme: settings.theme });       save(final);       applySettings(final);       fill();       flash('Saved');     }            let pending = null;     function endPending() {       clearInterval(pending.timer);       pending = null;       saveBtn.disabled = false;       saveBtn.style.opacity = '1';       saveBtn.textContent = 'Save';       cancelBtn.style.display = 'none';     }     function startCooldown(next) {       pending = { next, endsAt: Date.now() + COOLDOWN_MS, timer: null };       saveBtn.disabled = true;       saveBtn.style.opacity = '0.5';       cancelBtn.style.display = 'block';       flash('');       note.textContent = 'This change lets more through, so it applies after a short wait. Cancel any time.';       const tick = () => {         if (!pending) return;         const left = Math.max(0, Math.ceil((pending.endsAt - Date.now()) / 1000));         saveBtn.textContent = left > 0 ? 'Applying in ' + left + 's' : 'Applying\u2026';         if (left <= 0) {           const n = pending.next;           endPending();           commit(n);         }       };       pending.timer = setInterval(tick, 250);       tick();     }      saveBtn.addEventListener('click', () => {       if (pending) return;       const next = collect();       if (isLoosening(settings, next)) startCooldown(next);       else commit(next);     });     cancelBtn.addEventListener('click', () => {       if (!pending) return;       endPending();       fill();       flash('Change cancelled');     });      toggle.addEventListener('click', () => {       const open = panel.style.display === 'none';       panel.style.display = open ? 'block' : 'none';       if (open && !pending) { fill(); flash(''); }       scan();     });      panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Serein settings');
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.addEventListener('click', () => toggle.setAttribute('aria-expanded', String(panel.style.display !== 'none')));
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && panel.style.display !== 'none') {
-        panel.style.display = 'none';
-        toggle.setAttribute('aria-expanded', 'false');
-        toggle.focus();
       }
-    });
+      if (settings.focus.shorts) {
+        for (const element of document.querySelectorAll('ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ytd-shorts, ytm-reel-shelf-renderer')) desired.add(element);
+        for (const element of document.querySelectorAll('ytd-rich-section-renderer')) {
+          if (element.querySelector('ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], a[href^="/shorts"]')) desired.add(element);
+        }
+        for (const link of document.querySelectorAll('ytd-guide-entry-renderer a[href^="/shorts"], ytd-mini-guide-entry-renderer a[href^="/shorts"], a[href^="/shorts/"]')) {
+          const target = link.closest('ytd-guide-entry-renderer, ytd-mini-guide-entry-renderer') || link.closest('ytd-rich-item-renderer');
+          if (target) desired.add(target);
+        }
+      }
+      if (settings.focus.recommendations) {
+        for (const element of document.querySelectorAll('ytd-watch-next-secondary-results-renderer')) desired.add(element);
+      }
+      if (settings.focus.endScreens) {
+        for (const element of document.querySelectorAll('.ytp-endscreen-content, .ytp-ce-element, .ytp-ce-covering-overlay')) desired.add(element);
+      }
+      if (settings.focus.comments) {
+        for (const element of document.querySelectorAll('ytd-comments#comments, #comments')) desired.add(element);
+      }
+    }
+    return desired;
+  }
 
-    applyThemeFn = () => { P = PALETTES[resolveTheme()]; repaint(); };      timeToast = h('div', { ...BASE, position: 'fixed', right: '18px', bottom: '20px', maxWidth: 'min(340px, 90vw)', padding: '12px 14px', background: (p) => p.surface, border: hairline, borderRadius: '6px', boxShadow: '0 8px 28px rgba(0,0,0,0.24)', fontSize: '13px', color: (p) => p.text, zIndex: '2147483647', display: 'none' }, null, '');
-    root.append(panel, toggle, timeToast);     (document.body || document.documentElement).append(host);     fill();     applyThemeFn();     scan();   }        async function init() {     applySettings(await load());     buildUI();     scan();           setInterval(scan, 30000);     document.addEventListener('visibilitychange', () => {       if (document.hidden) {
-        YTKBTime.pause(timeState, Date.now());
-        YTKBTime.saveState(sessionStore, timeState);
-        if (timeTimer !== null) { clearInterval(timeTimer); timeTimer = null; }
-      } else { scan(); syncTimeTimer(); }
+  function isRecreationTime() {
+    const r = settings.recreation;
+    if (!r.enabled || r.start === r.end) return false;
+    const [sh, sm] = r.start.split(':').map(Number);
+    const [eh, em] = r.end.split(':').map(Number);
+    const now = new Date();
+    const current = now.getHours() * 60 + now.getMinutes();
+    const start = sh * 60 + sm;
+    const end = eh * 60 + em;
+    return start < end ? current >= start && current < end : current >= start || current < end;
+  }
+
+  function scan() {
+    const redirect = settings.focus.shorts && SereinMatcher.shortsRedirectTarget(location.pathname, location.origin);
+    if (redirect) { location.replace(redirect); return; }
+    const desired = collectHidden();
+    for (const element of document.querySelectorAll('[' + HIDDEN_ATTR + ']')) if (!desired.has(element)) show(element);
+    for (const element of desired) hide(element);
+    if (settings.focus.autoplay) {
+      const autoplay = document.querySelector('.ytp-autonav-toggle-button[aria-checked="true"]');
+      if (autoplay) autoplay.click();
+    }
+    if (status) status.textContent = isRecreationTime() ? 'Filters paused by schedule' : 'Filters active';
+  }
+
+  function scheduleScan() {
+    if (scanTimer !== null) return;
+    scanTimer = setTimeout(() => { scanTimer = null; scan(); }, 220);
+  }
+
+  function isLoosening(oldSettings, nextSettings) {
+    return SereinMatcher.isLoosening(oldSettings, nextSettings);
+  }
+
+  function openPanel(open) {
+    if (!panel || !trigger) return;
+    const shouldOpen = typeof open === 'boolean' ? open : panel.hidden;
+    panel.hidden = !shouldOpen;
+    trigger.setAttribute('aria-expanded', String(shouldOpen));
+    if (shouldOpen) {
+      positionPanel();
+      const first = panel.querySelector('[data-field="block"]');
+      if (first) first.focus();
+    }
+  }
+
+  function positionPanel() {
+    if (!panel || panel.hidden) return;
+    const rect = trigger.getBoundingClientRect();
+    const panelWidth = Math.min(380, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(window.innerWidth - panelWidth - 12, rect.right - panelWidth));
+    panel.style.left = left + 'px';
+    panel.style.top = Math.min(window.innerHeight - 24, Math.max(58, rect.bottom + 10)) + 'px';
+  }
+
+  function applyTheme() {
+    if (!host) return;
+    const resolved = settings.theme === 'auto'
+      ? (document.documentElement.hasAttribute('dark') ? 'dark' : 'light')
+      : settings.theme;
+    host.dataset.theme = resolved;
+    const themeButtons = host.shadowRoot.querySelectorAll('[data-theme]');
+    themeButtons.forEach((button) => {
+      const active = button.dataset.theme === settings.theme;
+      button.setAttribute('aria-pressed', String(active));
     });
-    window.addEventListener('beforeunload', () => YTKBTime.saveState(sessionStore, timeState));      new MutationObserver(schedule).observe(document.documentElement, {       childList: true, subtree: true, characterData: true     });           new MutationObserver(() => {       if (settings.theme === 'auto' && applyThemeFn) applyThemeFn();     }).observe(document.documentElement, { attributes: true, attributeFilter: ['dark'] });      document.addEventListener('yt-navigate-finish', schedule);     document.addEventListener('yt-page-data-updated', schedule);            try {       if (ext && ext.storage && ext.storage.onChanged) {         ext.storage.onChanged.addListener((changes, area) => {           if (area === 'local' && changes[KEY]) applySettings(changes[KEY].newValue);         });       }     } catch (e) {}   }    init(); })();
+  }
+
+  function buildUI() {
+    if (document.getElementById('serein-host')) return;
+    host = document.createElement('div');
+    host.id = 'serein-host';
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = `
+      <style>
+        :host { all: initial; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: light; }
+        * { box-sizing: border-box; }
+        .toolbar-button { border: 0; background: transparent; color: var(--yt-spec-text-primary, #0f0f0f); font: inherit; font-size: 14px; font-weight: 500; line-height: 1; padding: 0 13px; min-height: 36px; border-radius: 18px; cursor: pointer; white-space: nowrap; transition: background .15s ease; }
+        .toolbar-button:hover { background: rgba(127, 116, 184, .13); }
+        .toolbar-button:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .panel { position: fixed; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 76px)); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
+        .panel[hidden] { display: none; }
+        .header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
+        .brand { font-size: 17px; font-weight: 550; letter-spacing: .04em; text-transform: lowercase; }
+        .tagline { margin-top: 6px; font-size: 12px; color: var(--muted); letter-spacing: .01em; }
+        .status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+        .dot { width: 7px; height: 7px; border-radius: 50%; background: #7771b8; box-shadow: 0 0 0 3px rgba(119,113,184,.12); }
+        .close { margin-left: auto; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; }
+        .body { padding: 18px 20px 20px; }
+        .section-title { margin: 0 0 10px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+        .field-label { display: block; margin: 14px 0 7px; font-size: 13px; font-weight: 600; }
+        textarea { display: block; width: 100%; min-height: 68px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.5; outline: none; }
+        textarea::placeholder { color: var(--muted); }
+        .hint { margin-top: 6px; font-size: 11px; line-height: 1.45; color: var(--muted); }
+        .check-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 42px; border-bottom: 1px solid var(--border); }
+        .check-row:last-child { border-bottom: 0; }
+        .check-label { font-size: 13px; font-weight: 500; }
+        .switch { appearance: none; position: relative; width: 36px; height: 21px; flex: 0 0 36px; border: 0; border-radius: 20px; background: var(--switch-off); cursor: pointer; transition: background .18s ease; }
+        .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 15px; height: 15px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform .18s ease; }
+        .switch:checked { background: var(--accent); }
+        .switch:checked::after { transform: translateX(15px); }
+        .section { padding-top: 19px; margin-top: 18px; border-top: 1px solid var(--border); }
+        .theme-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .theme-button { min-height: 34px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted); font-size: 12px; cursor: pointer; }
+        .theme-button[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent); }
+        .schedule { display: none; margin-top: 12px; }
+        .schedule.visible { display: block; }
+        .time-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+        .time-row input { min-width: 0; flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 7px; color: var(--text); background: var(--surface); }
+        .actions { display: flex; gap: 8px; margin-top: 18px; }
+        .save { flex: 1; min-height: 40px; border: 0; border-radius: 10px; background: var(--accent); color: white; font-size: 13px; font-weight: 650; cursor: pointer; }
+        .cancel { min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--text); font-size: 12px; cursor: pointer; }
+        .note { min-height: 16px; margin-top: 9px; color: var(--muted); font-size: 11px; }
+        .footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 13px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+        .footer a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
+        .footer a:hover { color: var(--text); }
+        :host([data-theme="light"]) { --bg: #ffffff; --surface: #f7f7fa; --text: #24232b; --muted: #777582; --border: #e8e7ee; --accent: #7771b8; --accent-soft: #f0eff9; --accent-text: #625ca1; --switch-off: #c9c8d0; color-scheme: light; }
+        :host([data-theme="dark"]) { --bg: #141319; --surface: #1d1b25; --text: #f3f1f8; --muted: #a09dab; --border: #302d3a; --accent: #a9a3d8; --accent-soft: #292638; --accent-text: #d8d4f5; --switch-off: #4b4855; color-scheme: dark; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
+      </style>
+      <button class="toolbar-button" type="button" aria-expanded="false" aria-label="Open Serein filters">Filters</button>
+      <section class="panel" role="dialog" aria-label="Serein filters" hidden>
+        <header class="header">
+          <div class="brand">s e r e i n</div>
+          <div class="tagline">Keep what matters. Remove the noise.</div>
+          <div class="status"><span class="dot"></span><span data-status>Filters active</span><button class="close" type="button" aria-label="Close settings">×</button></div>
+        </header>
+        <div class="body">
+          <p class="section-title">Content filtering</p>
+          <label class="field-label" for="serein-block">Block keywords</label>
+          <textarea id="serein-block" data-field="block" placeholder="e.g. spoilers, celebrity gossip"></textarea>
+          <div class="hint">Hide videos when the title or channel name matches any term.</div>
+          <label class="field-label" for="serein-include">Only show matching</label>
+          <textarea id="serein-include" data-field="include" placeholder="e.g. PW, Java, machine learning"></textarea>
+          <div class="hint">When used, only matching titles or channels remain visible. Blocked terms always take priority.</div>
+          <div class="check-row" style="margin-top:10px;border:0"><span class="check-label">Match whole words only</span><input class="switch" type="checkbox" data-field="whole"></div>
+          <div class="section">
+            <p class="section-title">Distraction controls</p>
+            <div class="check-row"><span class="check-label">Hide Shorts</span><input class="switch" type="checkbox" data-field="shorts"></div>
+            <div class="check-row"><span class="check-label">Hide recommendations</span><input class="switch" type="checkbox" data-field="recommendations"></div>
+            <div class="check-row"><span class="check-label">Hide end-screen suggestions</span><input class="switch" type="checkbox" data-field="endScreens"></div>
+            <div class="check-row"><span class="check-label">Hide comments</span><input class="switch" type="checkbox" data-field="comments"></div>
+            <div class="check-row"><span class="check-label">Disable autoplay</span><input class="switch" type="checkbox" data-field="autoplay"></div>
+          </div>
+          <div class="section">
+            <p class="section-title">Appearance</p>
+            <div class="theme-row"><button class="theme-button" data-theme="light" type="button">Light</button><button class="theme-button" data-theme="dark" type="button">Dark</button><button class="theme-button" data-theme="auto" type="button">Auto</button></div>
+          </div>
+          <details class="section" data-schedule-details>
+            <summary class="section-title" style="cursor:pointer">Optional schedule</summary>
+            <div class="check-row"><span class="check-label">Pause filters during a daily window</span><input class="switch" type="checkbox" data-field="scheduleEnabled"></div>
+            <div class="schedule" data-schedule>
+              <div class="time-row"><input type="time" data-field="scheduleStart" aria-label="Schedule start"><span>to</span><input type="time" data-field="scheduleEnd" aria-label="Schedule end"></div>
+            </div>
+          </details>
+          <div class="actions"><button class="save" type="button">Save changes</button><button class="cancel" type="button" hidden>Cancel</button></div>
+          <div class="note" aria-live="polite"></div>
+        </div>
+        <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.0</span></footer>
+      </section>`;
+    shadow.querySelector('.toolbar-button').addEventListener('click', () => openPanel());
+    trigger = shadow.querySelector('.toolbar-button');
+    panel = shadow.querySelector('.panel');
+    status = shadow.querySelector('[data-status]');
+    note = shadow.querySelector('.note');
+    shadow.querySelector('.close').addEventListener('click', () => openPanel(false));
+    shadow.querySelectorAll('[data-theme]').forEach((button) => button.addEventListener('click', () => {
+      settings.theme = button.dataset.theme;
+      saveSettings();
+      applyTheme();
+    }));
+    const scheduleToggle = shadow.querySelector('[data-field="scheduleEnabled"]');
+    scheduleToggle.addEventListener('change', () => shadow.querySelector('[data-schedule]').classList.toggle('visible', scheduleToggle.checked));
+    shadow.querySelector('.save').addEventListener('click', saveFromUI);
+    shadow.querySelector('.cancel').addEventListener('click', () => { clearPending(); fillUI(); setNote('Change cancelled.'); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !panel.hidden) openPanel(false); });
+    document.addEventListener('pointerdown', (event) => {
+      if (panel.hidden || host.contains(event.target) || event.composedPath().includes(host)) return;
+      openPanel(false);
+    });
+    window.addEventListener('resize', positionPanel);
+    window.addEventListener('scroll', positionPanel, true);
+    shadow.querySelectorAll('[data-field]').forEach((field) => field.addEventListener('input', () => {
+      if (field.dataset.field === 'scheduleEnabled') shadow.querySelector('[data-schedule]').classList.toggle('visible', field.checked);
+    }));
+    (document.body || document.documentElement).append(host);
+    fillUI();
+    applyTheme();
+    placeTrigger();
+  }
+
+  let pendingChange = null;
+  let pendingTimer = null;
+  function setNote(message) { if (note) note.textContent = message || ''; }
+
+  function currentFromUI() {
+    const root = host.shadowRoot;
+    const field = (name) => root.querySelector('[data-field="' + name + '"]');
+    const list = (name) => parseList(field(name).value.split(/[\n,]/));
+    return normalize({
+      keywords: list('block'), includeKeywords: list('include'), wholeWord: field('whole').checked,
+      focus: {
+        shorts: field('shorts').checked,
+        recommendations: field('recommendations').checked,
+        endScreens: field('endScreens').checked,
+        comments: field('comments').checked,
+        autoplay: field('autoplay').checked
+      },
+      recreation: {
+        enabled: field('scheduleEnabled').checked,
+        start: field('scheduleStart').value || DEFAULTS.recreation.start,
+        end: field('scheduleEnd').value || DEFAULTS.recreation.end
+      },
+      theme: settings.theme
+    });
+  }
+
+  function fillUI() {
+    if (!host) return;
+    const root = host.shadowRoot;
+    const set = (name, value) => { root.querySelector('[data-field="' + name + '"]').value = value; };
+    const check = (name, value) => { root.querySelector('[data-field="' + name + '"]').checked = !!value; };
+    set('block', settings.keywords.join('\n'));
+    set('include', settings.includeKeywords.join('\n'));
+    check('whole', settings.wholeWord);
+    for (const key of ['shorts', 'recommendations', 'endScreens', 'comments', 'autoplay']) check(key, settings.focus[key]);
+    check('scheduleEnabled', settings.recreation.enabled);
+    set('scheduleStart', settings.recreation.start);
+    set('scheduleEnd', settings.recreation.end);
+    root.querySelector('[data-schedule]').classList.toggle('visible', settings.recreation.enabled);
+    root.querySelectorAll('[data-theme]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.theme === settings.theme)));
+  }
+
+  function clearPending() {
+    if (pendingTimer) clearInterval(pendingTimer);
+    pendingTimer = null;
+    pendingChange = null;
+    const root = host.shadowRoot;
+    root.querySelector('.save').textContent = 'Save changes';
+    root.querySelector('.save').disabled = false;
+    root.querySelector('.cancel').hidden = true;
+  }
+
+  function commit(next) {
+    settings = normalize(next);
+    saveSettings();
+    applySettings(settings);
+    fillUI();
+    setNote('Saved.');
+  }
+
+  function saveFromUI() {
+    if (pendingChange) return;
+    const next = currentFromUI();
+    if (!isLoosening(settings, next)) { commit(next); return; }
+    pendingChange = { next, endsAt: Date.now() + 60000 };
+    const root = host.shadowRoot;
+    const saveButton = root.querySelector('.save');
+    const cancelButton = root.querySelector('.cancel');
+    cancelButton.hidden = false;
+    saveButton.disabled = true;
+    setNote('This change allows more content through. It will apply in 60 seconds.');
+    const tick = () => {
+      if (!pendingChange) return;
+      const remaining = Math.max(0, Math.ceil((pendingChange.endsAt - Date.now()) / 1000));
+      saveButton.textContent = remaining ? 'Applying in ' + remaining + 's' : 'Applying…';
+      if (!remaining) {
+        const pending = pendingChange.next;
+        clearPending();
+        commit(pending);
+      }
+    };
+    pendingTimer = setInterval(tick, 250);
+    tick();
+  }
+
+  function placeTrigger() {
+    if (!host) return;
+    const center = document.querySelector('ytd-masthead #center, #masthead #center');
+    const search = center && center.querySelector('#search-form, form#search-form');
+    if (!center || !search) return;
+    host.style.display = 'inline-flex';
+    host.style.alignItems = 'center';
+    host.style.marginInlineStart = '8px';
+    host.style.position = 'relative';
+    if (host.parentElement !== search.parentElement || host.previousElementSibling !== search) search.insertAdjacentElement('afterend', host);
+    // Keep the panel fixed to the viewport even though the trigger lives in YouTube's header.
+    host.style.zIndex = '2147483647';
+  }
+
+  async function init() {
+    applySettings(await loadSettings());
+    buildUI();
+    scan();
+    const observer = new MutationObserver(() => {
+      if (!host.isConnected) { host = null; panel = null; trigger = null; buildUI(); }
+      placeTrigger();
+      scheduleScan();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    document.addEventListener('yt-navigate-finish', () => { placeTrigger(); scheduleScan(); });
+    document.addEventListener('yt-page-data-updated', scheduleScan);
+    const darkObserver = new MutationObserver(() => { if (settings.theme === 'auto') applyTheme(); });
+    darkObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['dark'] });
+    if (extensionApi && extensionApi.storage && extensionApi.storage.onChanged) {
+      extensionApi.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes[STORAGE_KEY]) applySettings(changes[STORAGE_KEY].newValue);
+      });
+    }
+
+  }
+
+  init();
+})();
