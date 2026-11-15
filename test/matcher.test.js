@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   buildMatcher,
+  matchesIncluded,
   isRecreationTime,
   isLoosening,
   shortsRedirectTarget
@@ -27,6 +28,16 @@ test('matcher handles case, whitespace, whole words and literal regex characters
   assert.equal(match('[test] video'), true);
   assert.equal(match(''), false);
   assert.equal(buildMatcher([])('anything'), false);
+});
+
+test('include matching checks title or channel with the shared matcher rules', () => {
+  const match = buildMatcher(['PW', 'machine learning'], true);
+  assert.equal(matchesIncluded('Physics Wallah lecture', 'Some Channel', match), false);
+  assert.equal(matchesIncluded('PW course overview', 'Some Channel', match), true);
+  assert.equal(matchesIncluded('A tutorial', 'PW', match), true);
+  assert.equal(matchesIncluded('A tutorial', 'PWNation', match), false);
+  assert.equal(matchesIncluded('A MACHINE   LEARNING guide', 'Other', match), true);
+  assert.equal(matchesIncluded('PW', 'channel', buildMatcher(['PW channel'], true)), false);
 });
 
 test('matcher can disable whole-word matching', () => {
@@ -53,6 +64,16 @@ test('adding, reordering and recasing keywords does not count as loosening', () 
 test('removing keywords counts as loosening', () => {
   assert.equal(isLoosening(base(), withSettings({ keywords: ['minecraft'] })), true);
   assert.equal(isLoosening(base(), withSettings({ keywords: [] })), true);
+});
+
+test('include-list changes only trigger cooldown when they broaden visibility', () => {
+  const oldSettings = withSettings({ includeKeywords: ['PW'] });
+  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['PW', 'Java'] })), true);
+  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['Java'] })), true);
+  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: [] })), true);
+  assert.equal(isLoosening(withSettings({ includeKeywords: [] }), oldSettings), false);
+  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['pw'] })), false);
+  assert.equal(isLoosening(oldSettings, withSettings({ includeKeywords: ['PW'] })), false);
 });
 
 test('loosening detection handles whole-word and focus switches', () => {

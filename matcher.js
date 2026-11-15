@@ -65,6 +65,12 @@ function recMinutes(recreation) {
   return minutes;
 }
 
+function matchesIncluded(title, channel, matcher) {
+  if (typeof matcher !== 'function') return false;
+  return (typeof title === 'string' && matcher(title)) ||
+    (typeof channel === 'string' && matcher(channel));
+}
+
 function normalizeKeyword(keyword) {
   return String(keyword).trim().split(/\s+/).filter(Boolean).join(' ').toLowerCase();
 }
@@ -85,6 +91,15 @@ function isLoosening(oldSettings, newSettings) {
     oldValue.wholeWord === false &&
     newValue.wholeWord !== false
   ) return true;
+
+  const oldIncluded = new Set((oldValue.includeKeywords || []).map(normalizeKeyword).filter(Boolean));
+  const newIncluded = new Set((newValue.includeKeywords || []).map(normalizeKeyword).filter(Boolean));
+  if (oldIncluded.size > 0 && newIncluded.size === 0) return true;
+  if (oldIncluded.size > 0) {
+    for (const keyword of newIncluded) {
+      if (!oldIncluded.has(keyword)) return true;
+    }
+  }
 
   const oldFocus = oldValue.focus || {};
   const newFocus = newValue.focus || {};
@@ -121,9 +136,12 @@ function shortsRedirectTarget(pathname, origin) {
   return match[1] ? origin + '/watch?v=' + match[1] : origin + '/';
 }
 
+globalThis.YTKBMatcher = { buildMatcher, matchesIncluded, isRecreationTime, isLoosening, shortsRedirectTarget };
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     buildMatcher,
+    matchesIncluded,
     isRecreationTime,
     isLoosening,
     shortsRedirectTarget
