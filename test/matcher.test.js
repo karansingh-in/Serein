@@ -6,6 +6,8 @@ const {
   buildMatcher,
   matchesIncluded,
   matchesChannel,
+  pageScope,
+  shouldFilterCards,
   isRecreationTime,
   isLoosening,
   shortsRedirectTarget
@@ -160,4 +162,24 @@ test('turning autoplay disabling off counts as loosening', () => {
   const newSettings = { ...base(), playback: { disableAutoplay: false } };
   assert.equal(isLoosening(oldSettings, newSettings), true);
   assert.equal(isLoosening(oldSettings, { ...oldSettings, playback: { disableAutoplay: true } }), false);
+});
+
+
+test('page scopes identify YouTube surfaces and apply card filters only where selected', () => {
+  assert.equal(pageScope('/'), 'home');
+  assert.equal(pageScope('/results'), 'search');
+  assert.equal(pageScope('/feed/subscriptions'), 'subscriptions');
+  assert.equal(pageScope('/watch'), 'recommendations');
+  assert.equal(pageScope('/@creator/videos'), 'other');
+  assert.equal(shouldFilterCards('/@creator/videos', 'all'), true);
+  assert.equal(shouldFilterCards('/results', 'search'), true);
+  assert.equal(shouldFilterCards('/', 'search'), false);
+  assert.equal(shouldFilterCards('/watch', 'recommendations'), true);
+});
+
+test('changing filter scope uses cooldown when it can move filtering to a new surface', () => {
+  const all = withSettings({ filterScope: 'all' });
+  assert.equal(isLoosening(all, withSettings({ filterScope: 'search' })), false);
+  assert.equal(isLoosening(withSettings({ filterScope: 'search' }), all), true);
+  assert.equal(isLoosening(withSettings({ filterScope: 'search' }), withSettings({ filterScope: 'home' })), true);
 });

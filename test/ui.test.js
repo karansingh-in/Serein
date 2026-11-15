@@ -7,6 +7,9 @@ const source = fs.readFileSync(require.resolve('../content.js'), 'utf8');
 
 test('settings panel keeps the primary controls visible and groups secondary controls', () => {
   assert.match(source, /label\('Focus mode'\), focusModeSelect, focusModeHint/);
+  assert.match(source, /label\('Filter videos on'\), filterScopeSelect, filterScopeHint/);
+  assert.match(source, /filterScopeSelect\.value = settings\.filterScope/);
+  assert.match(source, /filterScope: filterScopeSelect\.value/);
   assert.match(source, /label\('Block keywords'\), textarea, hint/);
   assert.match(source, /includeLabel, includeTextarea, includeHint/);
   assert.match(source, /includeTextarea\.value = settings\.includeKeywords/);

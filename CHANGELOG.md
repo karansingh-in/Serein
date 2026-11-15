@@ -20,3 +20,10 @@
 - Channel blocklist takes priority over the channel allowlist.
 - Integrated channel filter changes with the 60-second loosening cooldown.
 - Kept settings local and added no permissions or dependencies.
+
+## 2.3.0
+
+- Added a **Filter videos on** setting: All YouTube, Home, Search results, Subscriptions, or Watch recommendations.
+- Keyword and channel filters now respect the selected page scope.
+- Shorts handling and interface-distraction controls remain independent of page scope.
+- Added a conservative cooldown when changing an already-restricted scope.

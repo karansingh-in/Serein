@@ -11,7 +11,7 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'u
 test('release manifest is versioned and targets Firefox without unnecessary permissions', () => {
   assert.equal(manifest.manifest_version, 2);
   assert.equal(manifest.name, 'Serein');
-  assert.equal(manifest.version, '2.2.0');
+  assert.equal(manifest.version, '2.3.0');
   assert.deepEqual(manifest.permissions, ['storage']);
   assert.equal(manifest.browser_specific_settings.gecko.id, 'ytkb@karansingh-in');
 });
@@ -27,7 +27,7 @@ test('every declared content script and icon exists in the release package', () 
 
 test('the project remains dependency-free', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  assert.equal(pkg.version, '2.2.0');
+  assert.equal(pkg.version, '2.3.0');
   assert.equal(pkg.name, 'serein-youtube-cleaner');
   assert.equal(pkg.dependencies, undefined);
   assert.equal(pkg.devDependencies, undefined);

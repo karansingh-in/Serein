@@ -75,6 +75,21 @@ function matchesChannel(channel, matcher) {
   return typeof channel === 'string' && typeof matcher === 'function' && matcher(channel);
 }
 
+
+function pageScope(pathname) {
+  if (typeof pathname !== 'string') return 'other';
+  if (pathname === '/') return 'home';
+  if (pathname === '/results') return 'search';
+  if (pathname === '/feed/subscriptions') return 'subscriptions';
+  if (pathname === '/watch') return 'recommendations';
+  return 'other';
+}
+
+function shouldFilterCards(pathname, scope = 'all') {
+  if (scope === 'all' || !scope) return true;
+  return pageScope(pathname) === scope;
+}
+
 function normalizeKeyword(keyword) {
   return String(keyword).trim().split(/\s+/).filter(Boolean).join(' ').toLowerCase();
 }
@@ -128,6 +143,10 @@ function isLoosening(oldSettings, newSettings) {
 
   if (oldValue.distractionMode && !newValue.distractionMode) return true;
 
+  const oldScope = oldValue.filterScope || 'all';
+  const newScope = newValue.filterScope || 'all';
+  if (oldScope !== newScope && oldScope !== 'all') return true;
+
   const oldPlayback = oldValue.playback || {};
   const newPlayback = newValue.playback || {};
   if (oldPlayback.disableAutoplay === true && newPlayback.disableAutoplay !== true) return true;
@@ -155,13 +174,15 @@ function shortsRedirectTarget(pathname, origin) {
   return match[1] ? origin + '/watch?v=' + match[1] : origin + '/';
 }
 
-globalThis.YTKBMatcher = { buildMatcher, matchesIncluded, matchesChannel, isRecreationTime, isLoosening, shortsRedirectTarget };
+globalThis.YTKBMatcher = { buildMatcher, matchesIncluded, matchesChannel, pageScope, shouldFilterCards, isRecreationTime, isLoosening, shortsRedirectTarget };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     buildMatcher,
     matchesIncluded,
     matchesChannel,
+    pageScope,
+    shouldFilterCards,
     isRecreationTime,
     isLoosening,
     shortsRedirectTarget
