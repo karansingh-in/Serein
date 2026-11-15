@@ -231,11 +231,11 @@
 
   function positionPanel() {
     if (!panel || panel.hidden) return;
-    const rect = trigger.getBoundingClientRect();
-    const panelWidth = Math.min(380, window.innerWidth - 24);
-    const left = Math.max(12, Math.min(window.innerWidth - panelWidth - 12, rect.right - panelWidth));
-    panel.style.left = left + 'px';
-    panel.style.top = Math.min(window.innerHeight - 24, Math.max(58, rect.bottom + 10)) + 'px';
+    // Keep the panel directly above the fixed bottom-left launcher.
+    panel.style.left = '16px';
+    panel.style.right = 'auto';
+    panel.style.top = 'auto';
+    panel.style.bottom = '76px';
   }
 
   function applyTheme() {
@@ -260,10 +260,12 @@
       <style>
         :host { all: initial; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: light; }
         * { box-sizing: border-box; }
-        .toolbar-button { border: 0; background: transparent; color: var(--yt-spec-text-primary, #0f0f0f); font: inherit; font-size: 14px; font-weight: 500; line-height: 1; padding: 0 13px; min-height: 36px; border-radius: 18px; cursor: pointer; white-space: nowrap; transition: background .15s ease; }
-        .toolbar-button:hover { background: rgba(127, 116, 184, .13); }
-        .toolbar-button:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .panel { position: fixed; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 76px)); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
+        .launcher { position: fixed; left: 16px; bottom: 20px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); cursor: pointer; box-shadow: 0 4px 18px rgba(20,18,35,.14); transition: background .15s ease, border-color .15s ease, transform .15s ease; }
+        .launcher:hover { background: var(--accent-soft); border-color: var(--accent); transform: translateY(-1px); }
+        .launcher svg { width: 21px; height: 21px; display: block; }
+        .launcher-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+        .launcher:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .panel { position: fixed; left: 16px; bottom: 76px; z-index: 2147483647; width: min(380px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 100px)); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--bg); color: var(--text); box-shadow: 0 18px 60px rgba(20, 18, 35, .20); }
         .panel[hidden] { display: none; }
         .header { padding: 20px 20px 16px; border-bottom: 1px solid var(--border); }
         .brand { font-size: 17px; font-weight: 550; letter-spacing: .04em; text-transform: lowercase; }
@@ -303,7 +305,10 @@
         :host([data-theme="dark"]) { --bg: #141319; --surface: #1d1b25; --text: #f3f1f8; --muted: #a09dab; --border: #302d3a; --accent: #a9a3d8; --accent-soft: #292638; --accent-text: #d8d4f5; --switch-off: #4b4855; color-scheme: dark; }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
       </style>
-      <button class="toolbar-button" type="button" aria-expanded="false" aria-label="Open Serein filters">Filters</button>
+      <button class="launcher" type="button" aria-expanded="false" aria-label="Open Serein filters" title="Serein">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M6 18 18 6"></path></svg>
+        <span class="launcher-dot" aria-hidden="true"></span>
+      </button>
       <section class="panel" role="dialog" aria-label="Serein filters" hidden>
         <header class="header">
           <div class="brand">s e r e i n</div>
@@ -343,8 +348,8 @@
         </div>
         <footer class="footer"><a href="${BRAND_URL}" target="_blank" rel="noopener noreferrer">Built by karansingh-in</a><span>v3.0.0</span></footer>
       </section>`;
-    shadow.querySelector('.toolbar-button').addEventListener('click', () => openPanel());
-    trigger = shadow.querySelector('.toolbar-button');
+    shadow.querySelector('.launcher').addEventListener('click', () => openPanel());
+    trigger = shadow.querySelector('.launcher');
     panel = shadow.querySelector('.panel');
     status = shadow.querySelector('[data-status]');
     note = shadow.querySelector('.note');
@@ -363,8 +368,6 @@
       if (panel.hidden || host.contains(event.target) || event.composedPath().includes(host)) return;
       openPanel(false);
     });
-    window.addEventListener('resize', positionPanel);
-    window.addEventListener('scroll', positionPanel, true);
     shadow.querySelectorAll('[data-field]').forEach((field) => field.addEventListener('input', () => {
       if (field.dataset.field === 'scheduleEnabled') shadow.querySelector('[data-schedule]').classList.toggle('visible', field.checked);
     }));
@@ -461,16 +464,17 @@
 
   function placeTrigger() {
     if (!host) return;
-    const center = document.querySelector('ytd-masthead #center, #masthead #center');
-    const search = center && center.querySelector('#search-form, form#search-form');
-    if (!center || !search) return;
-    host.style.display = 'inline-flex';
-    host.style.alignItems = 'center';
-    host.style.marginInlineStart = '8px';
-    host.style.position = 'relative';
-    if (host.parentElement !== search.parentElement || host.previousElementSibling !== search) search.insertAdjacentElement('afterend', host);
-    // Keep the panel fixed to the viewport even though the trigger lives in YouTube's header.
+    // Serein intentionally lives in the bottom-left corner, away from YouTube's search/header controls.
+    host.style.position = 'fixed';
+    host.style.left = '16px';
+    host.style.bottom = '20px';
+    host.style.width = '44px';
+    host.style.height = '44px';
+    host.style.display = 'block';
+    host.style.margin = '0';
     host.style.zIndex = '2147483647';
+    if (host.parentElement !== document.body && document.body) document.body.append(host);
+    positionPanel();
   }
 
   async function init() {

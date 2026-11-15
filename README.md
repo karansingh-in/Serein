@@ -18,7 +18,7 @@ Serein is a lightweight, local-only Firefox extension that makes YouTube quieter
 
 ## Interface
 
-The **Filters** control appears beside YouTube's search bar. The settings panel uses the lowercase `s e r e i n` wordmark and credits **Built by karansingh-in** in the footer.
+A compact circle-slash launcher sits in the bottom-left corner of YouTube, separate from the search bar and native header controls. Clicking it opens the settings panel. The panel uses the lowercase `s e r e i n` wordmark and credits **Built by karansingh-in** in the footer.
 
 ## Install (Firefox)
 
@@ -26,7 +26,7 @@ The **Filters** control appears beside YouTube's search bar. The settings panel 
 2. Open `about:debugging#/runtime/this-firefox`.
 3. Select **Load Temporary Add-on…**.
 4. Choose the extracted `manifest.json`.
-5. Open or refresh YouTube. Select **Filters** beside the search bar.
+5. Open or refresh YouTube. Select the Serein circle-slash launcher in the bottom-left corner.
 
 A temporary add-on is removed when Firefox restarts. For permanent use, package and sign the extension through Mozilla Add-ons.
 

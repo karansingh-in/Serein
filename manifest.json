@@ -1,20 +1,31 @@
 {
   "manifest_version": 2,
   "name": "Serein",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A lightweight, local-only YouTube cleaner for filtering videos and reducing distractions.",
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*"],
-      "js": ["matcher.js", "content.js"],
+      "matches": [
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "matcher.js",
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "browser_specific_settings": {
     "gecko": {
       "id": "ytkb@karansingh-in",
-      "data_collection_permissions": { "required": ["none"] }
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   },
   "author": "karansingh-in",
